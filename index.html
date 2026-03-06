@@ -231,7 +231,7 @@ async function processTranscript(){
   btn.disabled=true;btn.textContent='⏳ Claude verdeelt de tekst...';
   document.getElementById('step-result').style.display='none';
   try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:TEMPLATES[currentTemplate].systemPrompt,messages:[{role:'user',content:transcript}]})});
+    const res=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:TEMPLATES[currentTemplate].systemPrompt,messages:[{role:'user',content:transcript}]})});
     const d=await res.json();
     structuredData=JSON.parse(d.content?.map(c=>c.text||'').join('').replace(/```json|```/g,'').trim());
     btn.disabled=false;btn.textContent='✨ Verwerk als '+TEMPLATES[currentTemplate].label;
