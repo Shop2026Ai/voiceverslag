@@ -151,7 +151,7 @@
     <div class="pdf-tip">
       <div class="pdf-tip-title">📱 Opslaan op iPhone:</div>
       <div><b>PDF:</b> tik op deelicoon ↑ → Sla op in Bestanden</div>
-      <div><b>Word:</b> bestand wordt direct gedownload</div>
+      <div><b>Word:</b> tik op deelicoon ↑ → Sla op in Bestanden of open in Word-app</div>
     </div>
   </div>
 </div>
@@ -299,11 +299,15 @@ async function downloadWord(){
   const doc=new Document({sections:[{properties:{},children}]});
   const blob=await Packer.toBlob(doc);
   const url=URL.createObjectURL(blob);
+  // iPhone Safari: open in nieuw tabblad, gebruiker kan dan delen/opslaan
   const a=document.createElement('a');
   a.href=url;
+  a.target='_blank';
   a.download=tmpl.label.replace(/ /g,'_')+'_'+date.replace(/\//g,'-')+'.docx';
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
 }
 </script>
 </body>
