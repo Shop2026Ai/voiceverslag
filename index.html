@@ -38,12 +38,11 @@
   .record-btn { width: 88px; height: 88px; border-radius: 50%; border: none; cursor: pointer; font-size: 32px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.3s; }
   .record-btn.idle { background: radial-gradient(circle, #fff, #ddd); box-shadow: 0 0 0 5px rgba(255,255,255,0.1), 0 4px 20px rgba(0,0,0,0.4); }
   .record-btn.recording { background: radial-gradient(circle, #ff1a35, #9e0e22); box-shadow: 0 0 0 10px rgba(210,18,46,0.2), 0 0 32px rgba(210,18,46,0.5); animation: recpulse 1.4s infinite; }
-  .record-btn.disabled { background: #333; cursor: not-allowed; }
   .record-timer { margin-top: 8px; font-size: 20px; color: #D2122E; font-weight: bold; font-family: monospace; }
   .record-label { margin-top: 8px; font-size: 12px; color: #6a4448; }
   .record-label.active { color: #D2122E; font-weight: bold; }
-  .transcribing-badge { display: inline-flex; align-items: center; gap: 7px; padding: 5px 14px; border-radius: 20px; background: rgba(210,18,46,0.15); border: 1px solid rgba(210,18,46,0.3); color: #D2122E; font-size: 12px; margin-bottom: 12px; }
-  .spin { animation: spin 1s linear infinite; display: inline-block; }
+  .live-text { background: #220b0e; border-radius: 10px; padding: 12px 14px; border: 1px solid #3a1218; margin-top: 12px; min-height: 60px; font-size: 13px; line-height: 1.75; color: #c8c0bc; display: none; }
+  .live-label { font-size: 10px; color: #D2122E; margin-bottom: 5px; letter-spacing: 1px; font-weight: bold; }
   .transcript-box { background: #220b0e; border-radius: 10px; padding: 14px; border: 1px solid #3a1218; margin-top: 12px; }
   .transcript-label { font-size: 10px; color: #D2122E; margin-bottom: 5px; letter-spacing: 1px; font-weight: bold; }
   .transcript-text { font-size: 13px; line-height: 1.75; color: #c8c0bc; max-height: 110px; overflow-y: auto; }
@@ -121,16 +120,19 @@
   <div class="step">
     <div class="step-header"><div class="step-num">4</div><div class="step-title">Spreek in</div></div>
     <div class="record-wrap">
-      <div id="transcribing-badge" class="transcribing-badge" style="display:none"><span class="spin">⏳</span> Audio wordt getranscribeerd...</div>
       <button class="record-btn idle" id="record-btn" onclick="toggleRecord()">🎤</button>
       <div id="record-timer" class="record-timer" style="display:none">00:00</div>
       <div id="record-label" class="record-label">Tik om te beginnen</div>
+    </div>
+    <div id="live-box" class="live-text">
+      <div class="live-label">LIVE TRANSCRIPT</div>
+      <div id="live-text"></div>
     </div>
     <div id="error-box" style="display:none"></div>
     <div id="transcript-box" class="transcript-box" style="display:none">
       <div class="transcript-label">TRANSCRIPT</div>
       <div class="transcript-text" id="transcript-text"></div>
-      <button class="transcript-clear" onclick="clearTranscript()">✕ Wissen</button>
+      <button class="transcript-clear" onclick="clearTranscript()">✕ Wissen en opnieuw</button>
     </div>
   </div>
   <div class="step" id="step-process" style="display:none">
@@ -152,30 +154,95 @@
 </div>
 <script>
 const TEMPLATES={wedstrijd:{label:"Wedstrijdverslag",emoji:"⚽",sections:[{id:"meta",label:"Datum / Teams / Uitslag",icon:"📋"},{id:"opstelling",label:"Opstelling",icon:"🟥"},{id:"eerste",label:"Eerste helft",icon:"1️⃣"},{id:"tweede",label:"Tweede helft",icon:"2️⃣"},{id:"hoogte",label:"Hoogtepunten / bijzonderheden",icon:"⭐"},{id:"spelers",label:"Verslag per gescoute speler",icon:"🔍"},{id:"conclusie",label:"Eindconclusie / beoordeling",icon:"📝"}],systemPrompt:`Je bent een professionele sportverslaggever. Verwerk de ingesproken tekst in onderstaande JSON. Geef ALLEEN geldige JSON terug, geen uitleg, geen backticks.\n{"meta":{"datum":"...","thuisploeg":"...","uitploeg":"...","uitslag":"..."},"opstelling":["speler - positie"],"eerste":["bullet"],"tweede":["bullet"],"hoogte":["bullet"],"spelers":["Naam: beoordeling"],"conclusie":["bullet"]}`},scouting:{label:"Scoutingsrapport",emoji:"🔍",sections:[{id:"info",label:"Spelerinfo",icon:"👤"},{id:"tech",label:"Technische vaardigheden",icon:"⚽"},{id:"tactisch",label:"Tactisch inzicht",icon:"🧠"},{id:"fysiek",label:"Fysieke kenmerken",icon:"💪"},{id:"mentaal",label:"Mentaal / karakter",icon:"🔥"},{id:"punten",label:"Sterke punten & verbeterpunten",icon:"⚖️"},{id:"advies",label:"Eindadvies / cijfer",icon:"🏆"}],systemPrompt:`Je bent een professionele voetbalscout. Verwerk de ingesproken tekst in onderstaande JSON. Geef ALLEEN geldige JSON terug, geen uitleg, geen backticks.\n{"info":{"naam":"...","leeftijd":"...","club":"...","positie":"..."},"tech":["bullet"],"tactisch":["bullet"],"fysiek":["bullet"],"mentaal":["bullet"],"punten":{"sterk":["..."],"verbeter":["..."]},"advies":{"aanbeveling":"Aanraden / Nader bekijken / Niet aanraden","cijfer":"7.5","toelichting":"..."}}`}};
-let currentTemplate='wedstrijd',currentFolder='Wedstrijdverslagen',folders=['Wedstrijdverslagen','Scoutingsrapporten','U17','U19','Archief'],isRecording=false,transcript='',structuredData=null,mediaRecorder=null,chunks=[],timerInterval=null,recordSeconds=0,openSection=null;
+
+let currentTemplate='wedstrijd',currentFolder='Wedstrijdverslagen',folders=['Wedstrijdverslagen','Scoutingsrapporten','U17','U19','Archief'],isRecording=false,transcript='',structuredData=null,recognition=null,timerInterval=null,recordSeconds=0,openSection=null,finalTranscript='';
+
 renderFolders();renderSectionTags();
+
 function setTemplate(k){currentTemplate=k;document.getElementById('btn-wedstrijd').className='type-btn'+(k==='wedstrijd'?' active':'');document.getElementById('btn-scouting').className='type-btn'+(k==='scouting'?' active':'');structuredData=null;transcript='';document.getElementById('transcript-box').style.display='none';document.getElementById('step-process').style.display='none';document.getElementById('step-result').style.display='none';renderSectionTags();}
 function renderFolders(){document.getElementById('folder-row').innerHTML=folders.map(f=>`<div class="folder-chip${f===currentFolder?' active':''}" onclick="selectFolder('${f}')">📁 ${f}</div>`).join('')+`<div class="folder-chip folder-add" onclick="toggleFolderInput()">+ Nieuwe map</div>`;}
 function selectFolder(f){currentFolder=f;renderFolders();}
 function toggleFolderInput(){const w=document.getElementById('folder-input-wrap');w.style.display=w.style.display==='none'?'block':'none';}
 function addFolder(){const i=document.getElementById('folder-input'),n=i.value.trim();if(n&&!folders.includes(n)){folders.push(n);currentFolder=n;}i.value='';document.getElementById('folder-input-wrap').style.display='none';renderFolders();}
 function renderSectionTags(){document.getElementById('section-tags').innerHTML=TEMPLATES[currentTemplate].sections.map(s=>`<div class="section-tag">${s.icon} ${s.label}</div>`).join('');}
-async function toggleRecord(){isRecording?stopRecording():await startRecording();}
-async function startRecording(){try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});const mt=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':MediaRecorder.isTypeSupported('audio/mp4')?'audio/mp4':'';mediaRecorder=new MediaRecorder(stream,mt?{mimeType:mt}:{});chunks=[];mediaRecorder.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data);};mediaRecorder.onstop=async()=>{stream.getTracks().forEach(t=>t.stop());const blob=new Blob(chunks,{type:mt||'audio/webm'});showTranscribing(true);try{const b64=await blobToBase64(blob);const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:'Je transcribeert gesproken Nederlands naar tekst. Geef ALLEEN de tekst terug.',messages:[{role:'user',content:[{type:'text',text:'Transcribeer:'},{type:'document',source:{type:'base64',media_type:mt||'audio/webm',data:b64}}]}]})});const d=await res.json();transcript=d.content?.map(c=>c.text||'').join('')||'';showTranscribing(false);showTranscript();}catch(e){showTranscribing(false);showError('Transcriptie mislukt: '+e.message);}};mediaRecorder.start(1000);isRecording=true;recordSeconds=0;setRecordUI('recording');timerInterval=setInterval(()=>{recordSeconds++;const m=String(Math.floor(recordSeconds/60)).padStart(2,'0'),s=String(recordSeconds%60).padStart(2,'0');document.getElementById('record-timer').textContent=m+':'+s;},1000);}catch(e){showMicError();}}
-function stopRecording(){mediaRecorder?.stop();clearInterval(timerInterval);isRecording=false;setRecordUI('idle');}
-function setRecordUI(s){const b=document.getElementById('record-btn'),t=document.getElementById('record-timer'),l=document.getElementById('record-label');if(s==='recording'){b.className='record-btn recording';b.textContent='⏹';t.style.display='block';l.textContent='● OPNAME LOOPT — tik om te stoppen';l.className='record-label active';}else if(s==='disabled'){b.className='record-btn disabled';b.textContent='🔄';t.style.display='none';l.textContent='Even geduld...';l.className='record-label';}else{b.className='record-btn idle';b.textContent='🎤';t.style.display='none';l.textContent='Tik om te beginnen';l.className='record-label';}}
-function showTranscribing(show){document.getElementById('transcribing-badge').style.display=show?'inline-flex':'none';setRecordUI(show?'disabled':'idle');}
-function showTranscript(){if(!transcript)return;document.getElementById('transcript-text').textContent=transcript;document.getElementById('transcript-box').style.display='block';document.getElementById('step-process').style.display='block';document.getElementById('process-btn').textContent='✨ Verwerk als '+TEMPLATES[currentTemplate].label;document.getElementById('error-box').style.display='none';}
-function clearTranscript(){transcript='';structuredData=null;document.getElementById('transcript-box').style.display='none';document.getElementById('step-process').style.display='none';document.getElementById('step-result').style.display='none';}
-function showError(msg){const b=document.getElementById('error-box');b.style.display='block';b.innerHTML=`<div class="error-title">⚠️ Fout</div><div class="error-generic">${msg}</div>`;}
-function showMicError(){const b=document.getElementById('error-box');b.style.display='block';b.innerHTML=`<div class="error-title">📱 Microfoon toestaan in Safari:</div><div>1. Ga naar <b>Instellingen</b></div><div>2. Scroll naar <b>Apps → Safari</b></div><div>3. Tik op <b>Microfoon → Toestaan</b></div><div>4. Herlaad de pagina</div>`;}
-async function processTranscript(){if(!transcript.trim())return;const btn=document.getElementById('process-btn');btn.disabled=true;btn.textContent='⏳ Claude verdeelt de tekst...';document.getElementById('step-result').style.display='none';try{const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:TEMPLATES[currentTemplate].systemPrompt,messages:[{role:'user',content:transcript}]})});const d=await res.json();structuredData=JSON.parse(d.content?.map(c=>c.text||'').join('').replace(/```json|```/g,'').trim());btn.disabled=false;btn.textContent='✨ Verwerk als '+TEMPLATES[currentTemplate].label;openSection=TEMPLATES[currentTemplate].sections[0].id;renderAccordion();document.getElementById('step-result').style.display='block';}catch(e){btn.disabled=false;btn.textContent='✨ Probeer opnieuw';showError('Fout: '+e.message);}}
+
+function toggleRecord(){isRecording?stopRecording():startRecording();}
+
+function startRecording(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){showError('Spraakherkenning niet beschikbaar. Gebruik Safari op iPhone of Chrome op Android.');return;}
+  recognition=new SR();
+  recognition.lang='nl-NL';
+  recognition.continuous=true;
+  recognition.interimResults=true;
+  finalTranscript='';
+  recognition.onresult=e=>{
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal)finalTranscript+=e.results[i][0].transcript+' ';
+      else interim+=e.results[i][0].transcript;
+    }
+    document.getElementById('live-text').textContent=finalTranscript+interim;
+    document.getElementById('live-box').style.display='block';
+  };
+  recognition.onerror=e=>{
+    if(e.error==='not-allowed')showError('Microfoon geblokkeerd. Ga naar Instellingen → Safari → Microfoon → Toestaan.');
+    else showError('Fout: '+e.error);
+    stopRecording();
+  };
+  recognition.onend=()=>{if(isRecording)recognition.start();};
+  recognition.start();
+  isRecording=true;
+  recordSeconds=0;
+  setRecordUI('recording');
+  timerInterval=setInterval(()=>{recordSeconds++;const m=String(Math.floor(recordSeconds/60)).padStart(2,'0'),s=String(recordSeconds%60).padStart(2,'0');document.getElementById('record-timer').textContent=m+':'+s;},1000);
+}
+
+function stopRecording(){
+  if(recognition){recognition.onend=null;recognition.stop();}
+  clearInterval(timerInterval);
+  isRecording=false;
+  setRecordUI('idle');
+  transcript=finalTranscript.trim();
+  document.getElementById('live-box').style.display='none';
+  if(transcript){
+    document.getElementById('transcript-text').textContent=transcript;
+    document.getElementById('transcript-box').style.display='block';
+    document.getElementById('step-process').style.display='block';
+    document.getElementById('process-btn').textContent='✨ Verwerk als '+TEMPLATES[currentTemplate].label;
+    document.getElementById('error-box').style.display='none';
+  }
+}
+
+function setRecordUI(s){const b=document.getElementById('record-btn'),t=document.getElementById('record-timer'),l=document.getElementById('record-label');if(s==='recording'){b.className='record-btn recording';b.textContent='⏹';t.style.display='block';l.textContent='● OPNAME LOOPT — tik om te stoppen';l.className='record-label active';}else{b.className='record-btn idle';b.textContent='🎤';t.style.display='none';l.textContent='Tik om te beginnen';l.className='record-label';}}
+function clearTranscript(){transcript='';structuredData=null;finalTranscript='';document.getElementById('transcript-box').style.display='none';document.getElementById('step-process').style.display='none';document.getElementById('step-result').style.display='none';document.getElementById('live-box').style.display='none';}
+function showError(msg){const b=document.getElementById('error-box');b.style.display='block';b.innerHTML=`<div class="error-title">⚠️ Probleem</div><div class="error-generic">${msg}</div>`;}
+
+async function processTranscript(){
+  if(!transcript.trim())return;
+  const btn=document.getElementById('process-btn');
+  btn.disabled=true;btn.textContent='⏳ Claude verdeelt de tekst...';
+  document.getElementById('step-result').style.display='none';
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:TEMPLATES[currentTemplate].systemPrompt,messages:[{role:'user',content:transcript}]})});
+    const d=await res.json();
+    structuredData=JSON.parse(d.content?.map(c=>c.text||'').join('').replace(/```json|```/g,'').trim());
+    btn.disabled=false;btn.textContent='✨ Verwerk als '+TEMPLATES[currentTemplate].label;
+    openSection=TEMPLATES[currentTemplate].sections[0].id;
+    renderAccordion();
+    document.getElementById('step-result').style.display='block';
+  }catch(e){
+    btn.disabled=false;btn.textContent='✨ Probeer opnieuw';
+    showError('Verwerkingsfout: '+e.message);
+  }
+}
+
 function renderAccordion(){document.getElementById('accordion').innerHTML=TEMPLATES[currentTemplate].sections.map(sec=>{const val=structuredData?.[sec.id],filled=hasContent(val),isOpen=openSection===sec.id;return`<div class="acc-item${isOpen?' open':''}" id="acc-${sec.id}"><button class="acc-btn" onclick="toggleSection('${sec.id}')"><span>${sec.icon} ${sec.label}${filled?'<span class="acc-dot"></span>':''}</span><span class="acc-arrow">▼</span></button>${isOpen?`<div class="acc-body">${renderSectionHTML(sec.id,val)}</div>`:''}</div>`;}).join('');}
 function toggleSection(id){openSection=openSection===id?null:id;renderAccordion();}
 function hasContent(v){if(!v)return false;if(Array.isArray(v))return v.length>0;if(typeof v==='object')return Object.values(v).some(x=>x&&x!=='niet vermeld'&&(!Array.isArray(x)||x.length>0));return!!v;}
-function renderSectionHTML(id,val){if(!val)return'<div class="empty">Niet vermeld</div>';if(currentTemplate==='wedstrijd'&&id==='meta')return`<div class="meta-grid">${[['📅 DATUM',val.datum],['🏠 THUISPLOEG',val.thuisploeg],['✈️ UITPLOEG',val.uitploeg],['🏆 UITSLAG',val.uitslag]].map(([k,v])=>`<div class="meta-cell"><div class="meta-label">${k}</div><div class="meta-val">${v||'—'}</div></div>`).join('')}</div>`;if(currentTemplate==='scouting'&&id==='info')return`<div class="meta-grid">${[['👤 NAAM',val.naam],['🎂 LEEFTIJD',val.leeftijd],['🏟️ CLUB',val.club],['🎯 POSITIE',val.positie]].map(([k,v])=>`<div class="meta-cell"><div class="meta-label">${k}</div><div class="meta-val">${v||'—'}</div></div>`).join('')}</div>`;if(currentTemplate==='scouting'&&id==='punten')return`<div class="punten-grid"><div><div class="punten-head" style="color:#6ee87a">✅ STERK</div>${val.sterk?.length?`<ul class="bullet-list">${val.sterk.map(s=>`<li>${s}</li>`).join('')}</ul>`:'<div class="empty">Niet vermeld</div>'}</div><div><div class="punten-head" style="color:#D2122E">⚠️ VERBETER</div>${val.verbeter?.length?`<ul class="bullet-list">${val.verbeter.map(s=>`<li>${s}</li>`).join('')}</ul>`:'<div class="empty">Niet vermeld</div>'}</div></div>`;if(currentTemplate==='scouting'&&id==='advies'){const k=val.aanbeveling==='Aanraden'?'#6ee87a':val.aanbeveling==='Nader bekijken'?'#f0c040':'#D2122E';return`<div class="advies-row"><div class="advies-badge" style="background:${k}22;border:1px solid ${k}77;color:${k}">${val.aanbeveling||'—'}</div>${val.cijfer?`<div class="advies-cijfer">${val.cijfer}<small>/10</small></div>`:''}</div>${val.toelichting?`<div class="advies-toelichting">${val.toelichting}</div>`:''}`;};if(Array.isArray(val)&&val.length)return`<ul class="bullet-list">${val.map(v=>`<li>${v}</li>`).join('')}</ul>`;return'<div class="empty">Niet vermeld</div>';}
+function renderSectionHTML(id,val){if(!val)return'<div class="empty">Niet vermeld</div>';if(currentTemplate==='wedstrijd'&&id==='meta')return`<div class="meta-grid">${[['📅 DATUM',val.datum],['🏠 THUISPLOEG',val.thuisploeg],['✈️ UITPLOEG',val.uitploeg],['🏆 UITSLAG',val.uitslag]].map(([k,v])=>`<div class="meta-cell"><div class="meta-label">${k}</div><div class="meta-val">${v||'—'}</div></div>`).join('')}</div>`;if(currentTemplate==='scouting'&&id==='info')return`<div class="meta-grid">${[['👤 NAAM',val.naam],['🎂 LEEFTIJD',val.leeftijd],['🏟️ CLUB',val.club],['🎯 POSITIE',val.positie]].map(([k,v])=>`<div class="meta-cell"><div class="meta-label">${k}</div><div class="meta-val">${v||'—'}</div></div>`).join('')}</div>`;if(currentTemplate==='scouting'&&id==='punten')return`<div class="punten-grid"><div><div class="punten-head" style="color:#6ee87a">✅ STERK</div>${val.sterk?.length?`<ul class="bullet-list">${val.sterk.map(s=>`<li>${s}</li>`).join('')}</ul>`:'<div class="empty">Niet vermeld</div>'}</div><div><div class="punten-head" style="color:#D2122E">⚠️ VERBETER</div>${val.verbeter?.length?`<ul class="bullet-list">${val.verbeter.map(s=>`<li>${s}</li>`).join('')}</ul>`:'<div class="empty">Niet vermeld</div>'}</div></div>`;if(currentTemplate==='scouting'&&id==='advies'){const k=val.aanbeveling==='Aanraden'?'#6ee87a':val.aanbeveling==='Nader bekijken'?'#f0c040':'#D2122E';return`<div class="advies-row"><div class="advies-badge" style="background:${k}22;border:1px solid ${k}77;color:${k}">${val.aanbeveling||'—'}</div>${val.cijfer?`<div class="advies-cijfer">${val.cijfer}<small>/10</small></div>`:''}</div>${val.toelichting?`<div class="advies-toelichting">${val.toelichting}</div>`:''}`;}if(Array.isArray(val)&&val.length)return`<ul class="bullet-list">${val.map(v=>`<li>${v}</li>`).join('')}</ul>`;return'<div class="empty">Niet vermeld</div>';}
+
 function openPDF(){const tmpl=TEMPLATES[currentTemplate],date=new Date().toLocaleDateString('nl-NL');let s='';tmpl.sections.forEach(sec=>{const val=structuredData?.[sec.id];let c='<p style="color:#999;font-style:italic">Niet vermeld</p>';if(val){if(currentTemplate==='wedstrijd'&&sec.id==='meta')c=`<table style="width:100%;border-collapse:collapse"><tr><td style="padding:5px 10px 5px 0;font-weight:bold;color:#555;width:90px">Datum</td><td>${val.datum||'—'}</td><td style="padding:5px 10px 5px 16px;font-weight:bold;color:#555">Thuisploeg</td><td>${val.thuisploeg||'—'}</td></tr><tr><td style="padding:5px 10px 5px 0;font-weight:bold;color:#555">Uitploeg</td><td>${val.uitploeg||'—'}</td><td style="padding:5px 10px 5px 16px;font-weight:bold;color:#555">Uitslag</td><td style="font-weight:bold;color:#D2122E">${val.uitslag||'—'}</td></tr></table>`;else if(currentTemplate==='scouting'&&sec.id==='info')c=`<table style="width:100%;border-collapse:collapse"><tr><td style="padding:5px 10px 5px 0;font-weight:bold;color:#555;width:90px">Naam</td><td>${val.naam||'—'}</td><td style="padding:5px 10px 5px 16px;font-weight:bold;color:#555">Leeftijd</td><td>${val.leeftijd||'—'}</td></tr><tr><td style="padding:5px 10px 5px 0;font-weight:bold;color:#555">Club</td><td>${val.club||'—'}</td><td style="padding:5px 10px 5px 16px;font-weight:bold;color:#555">Positie</td><td>${val.positie||'—'}</td></tr></table>`;else if(currentTemplate==='scouting'&&sec.id==='punten')c=`<table style="width:100%"><tr><td style="vertical-align:top;width:50%;padding-right:12px"><b style="color:#2e7d32">✅ Sterk</b><ul style="padding-left:18px;margin-top:6px">${(val.sterk||[]).map(x=>`<li style="line-height:1.7">${x}</li>`).join('')||'<li>—</li>'}</ul></td><td style="vertical-align:top"><b style="color:#c62828">⚠️ Verbeter</b><ul style="padding-left:18px;margin-top:6px">${(val.verbeter||[]).map(x=>`<li style="line-height:1.7">${x}</li>`).join('')||'<li>—</li>'}</ul></td></tr></table>`;else if(currentTemplate==='scouting'&&sec.id==='advies'){const k=val.aanbeveling==='Aanraden'?'#2e7d32':val.aanbeveling==='Nader bekijken'?'#e65100':'#c62828';c=`<div style="display:flex;align-items:center;gap:16px;margin-bottom:8px"><span style="background:${k};color:white;padding:6px 18px;border-radius:20px;font-weight:bold">${val.aanbeveling||'—'}</span><span style="font-size:20pt;font-weight:bold;color:#D2122E">${val.cijfer||'—'}<small style="font-size:10pt;color:#999">/10</small></span></div>${val.toelichting?`<p>${val.toelichting}</p>`:''}`;}else if(Array.isArray(val)&&val.length)c=`<ul style="padding-left:18px">${val.map(v=>`<li style="line-height:1.7;margin-bottom:2px">${v}</li>`).join('')}</ul>`;}s+=`<div style="margin-bottom:18px;border-left:4px solid #D2122E;padding-left:12px"><div style="font-weight:bold;color:#D2122E;text-transform:uppercase;font-size:11pt;margin-bottom:7px;padding-bottom:4px;border-bottom:1px solid #eee">${sec.icon} ${sec.label}</div>${c}</div>`;});const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${tmpl.label}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:12pt;color:#111;background:#fff}.bar{position:fixed;bottom:0;left:0;right:0;background:#D2122E;padding:14px 20px;display:flex;align-items:center;justify-content:space-between}.btn{background:#fff;color:#9e0e22;border:none;padding:11px 22px;border-radius:8px;font-size:13pt;font-weight:bold;cursor:pointer}@media print{.bar,.sp{display:none!important}}</style></head><body><div style="background:#D2122E;color:#fff;padding:18px 24px"><h1 style="font-size:20pt;margin-bottom:3px">${tmpl.emoji} ${tmpl.label}</h1><p style="font-size:10pt;opacity:.8">Gegenereerd op ${date} · Map: ${currentFolder}</p></div><div style="padding:18px 24px">${s}<div style="margin-top:24px;padding-top:8px;border-top:1px solid #ddd;font-size:9pt;color:#aaa">VoiceVerslag · ${date}</div></div><div class="sp" style="height:70px"></div><div class="bar"><span style="color:#fff;font-size:13pt;font-weight:bold">Opslaan als PDF</span><button class="btn" onclick="window.print()">🖨️ Sla op als PDF</button></div></body></html>`;const w=window.open('','_blank');if(w){w.document.write(html);w.document.close();}else alert('Sta pop-ups toe voor deze site.');}
-function blobToBase64(blob){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(blob);});}
 </script>
 </body>
 </html>
