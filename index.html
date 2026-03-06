@@ -235,7 +235,11 @@ async function processTranscript(){
   try{
     const res=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:TEMPLATES[currentTemplate].systemPrompt,messages:[{role:'user',content:transcript}]})});
     const d=await res.json();
-    structuredData=JSON.parse(d.content?.map(c=>c.text||'').join('').replace(/```json|```/g,'').trim());
+    const raw=d.content?.map(c=>c.text||'').join('')||'';
+    // Extraheer JSON ook als er tekst omheen staat
+    const match=raw.match(/\{[\s\S]*\}/);
+    if(!match)throw new Error('Geen JSON gevonden in antwoord');
+    structuredData=JSON.parse(match[0]);
     btn.disabled=false;btn.textContent='✨ Verwerk als '+TEMPLATES[currentTemplate].label;
     openSection=TEMPLATES[currentTemplate].sections[0].id;
     renderAccordion();
