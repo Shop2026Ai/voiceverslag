@@ -38,6 +38,7 @@
   .record-btn { width: 88px; height: 88px; border-radius: 50%; border: none; cursor: pointer; font-size: 32px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.3s; }
   .record-btn.idle { background: radial-gradient(circle, #fff, #ddd); box-shadow: 0 0 0 5px rgba(255,255,255,0.1), 0 4px 20px rgba(0,0,0,0.4); }
   .record-btn.recording { background: radial-gradient(circle, #ff1a35, #9e0e22); box-shadow: 0 0 0 10px rgba(210,18,46,0.2), 0 0 32px rgba(210,18,46,0.5); animation: recpulse 1.4s infinite; }
+  .record-btn.disabled { background: #333; cursor: not-allowed; }
   .record-timer { margin-top: 8px; font-size: 20px; color: #D2122E; font-weight: bold; font-family: monospace; }
   .record-label { margin-top: 8px; font-size: 12px; color: #6a4448; }
   .record-label.active { color: #D2122E; font-weight: bold; }
@@ -170,27 +171,31 @@ function toggleRecord(){isRecording?stopRecording():startRecording();}
 
 function startRecording(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){showError('Spraakherkenning niet beschikbaar. Gebruik Safari op iPhone of Chrome op Android.');return;}
+  if(!SR){showMicError('Spraakherkenning niet beschikbaar in deze browser. Probeer Safari op iPhone of Chrome op Android.');return;}
   recognition=new SR();
   recognition.lang='nl-NL';
   recognition.continuous=true;
   recognition.interimResults=true;
   finalTranscript='';
+  let sessionTranscript='';
   recognition.onresult=e=>{
     let interim='';
     for(let i=e.resultIndex;i<e.results.length;i++){
-      if(e.results[i].isFinal)finalTranscript+=e.results[i][0].transcript+' ';
+      if(e.results[i].isFinal)sessionTranscript+=e.results[i][0].transcript+' ';
       else interim+=e.results[i][0].transcript;
     }
-    document.getElementById('live-text').textContent=finalTranscript+interim;
+    document.getElementById('live-text').textContent=sessionTranscript+interim;
     document.getElementById('live-box').style.display='block';
+    finalTranscript=sessionTranscript;
   };
   recognition.onerror=e=>{
-    if(e.error==='not-allowed')showError('Microfoon geblokkeerd. Ga naar Instellingen → Safari → Microfoon → Toestaan.');
-    else showError('Fout: '+e.error);
+    if(e.error==='not-allowed')showMicError('Microfoon geblokkeerd. Ga naar Instellingen → Safari → Microfoon → Toestaan.');
+    else showMicError('Fout: '+e.error);
     stopRecording();
   };
-  recognition.onend=()=>{if(isRecording)recognition.start();};
+  recognition.onend=()=>{
+    if(isRecording)recognition.start();
+  };
   recognition.start();
   isRecording=true;
   recordSeconds=0;
@@ -203,9 +208,11 @@ function stopRecording(){
   clearInterval(timerInterval);
   isRecording=false;
   setRecordUI('idle');
-  transcript=finalTranscript.trim();
+  const nieuw=finalTranscript.trim();
   document.getElementById('live-box').style.display='none';
-  if(transcript){
+  if(nieuw){
+    transcript=transcript?transcript+' '+nieuw:nieuw;
+    finalTranscript='';
     document.getElementById('transcript-text').textContent=transcript;
     document.getElementById('transcript-box').style.display='block';
     document.getElementById('step-process').style.display='block';
@@ -214,9 +221,9 @@ function stopRecording(){
   }
 }
 
-function setRecordUI(s){const b=document.getElementById('record-btn'),t=document.getElementById('record-timer'),l=document.getElementById('record-label');if(s==='recording'){b.className='record-btn recording';b.textContent='⏹';t.style.display='block';l.textContent='● OPNAME LOOPT — tik om te stoppen';l.className='record-label active';}else{b.className='record-btn idle';b.textContent='🎤';t.style.display='none';l.textContent='Tik om te beginnen';l.className='record-label';}}
+function setRecordUI(s){const b=document.getElementById('record-btn'),t=document.getElementById('record-timer'),l=document.getElementById('record-label');if(s==='recording'){b.className='record-btn recording';b.textContent='⏸';t.style.display='block';l.textContent='● LOOPT — tik om te pauzeren';l.className='record-label active';}else{b.className='record-btn idle';b.textContent='🎤';t.style.display='none';l.textContent=transcript?'Tik om verder in te spreken':'Tik om te beginnen';l.className='record-label';}}
 function clearTranscript(){transcript='';structuredData=null;finalTranscript='';document.getElementById('transcript-box').style.display='none';document.getElementById('step-process').style.display='none';document.getElementById('step-result').style.display='none';document.getElementById('live-box').style.display='none';}
-function showError(msg){const b=document.getElementById('error-box');b.style.display='block';b.innerHTML=`<div class="error-title">⚠️ Probleem</div><div class="error-generic">${msg}</div>`;}
+function showMicError(msg){const b=document.getElementById('error-box');b.style.display='block';b.innerHTML=`<div class="error-title">📱 Microfoon probleem</div><div>${msg}</div>`;}
 
 async function processTranscript(){
   if(!transcript.trim())return;
@@ -233,7 +240,7 @@ async function processTranscript(){
     document.getElementById('step-result').style.display='block';
   }catch(e){
     btn.disabled=false;btn.textContent='✨ Probeer opnieuw';
-    showError('Verwerkingsfout: '+e.message);
+    const b=document.getElementById('error-box');b.style.display='block';b.innerHTML=`<div class="error-title">⚠️ Fout</div><div class="error-generic">${e.message}</div>`;
   }
 }
 
