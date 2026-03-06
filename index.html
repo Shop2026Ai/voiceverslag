@@ -85,6 +85,7 @@
   ::-webkit-scrollbar { width: 3px; }
   ::-webkit-scrollbar-thumb { background: rgba(210,18,46,0.4); border-radius: 2px; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js"></script>
 </head>
 <body>
 <div class="header">
@@ -143,13 +144,14 @@
   <div class="step" id="step-result" style="display:none">
     <div class="step-header"><div class="step-num">6</div><div class="step-title">Gestructureerd resultaat</div></div>
     <div class="accordion" id="accordion"></div>
-    <button class="pdf-btn" onclick="openPDF()">📄 Openen als PDF</button>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="pdf-btn" style="flex:1;margin-top:0" onclick="openPDF()">📄 PDF</button>
+      <button class="pdf-btn" style="flex:1;margin-top:0;background:#1a3a6e;border-color:#1a3a6e;color:#fff" onclick="downloadWord()">📝 Word</button>
+    </div>
     <div class="pdf-tip">
-      <div class="pdf-tip-title">📱 PDF opslaan op iPhone:</div>
-      <div>1. Tik op <b>📄 Openen als PDF</b> hierboven</div>
-      <div>2. Tik onderin op <b>Opslaan als PDF</b></div>
-      <div>3. Tik op het <b>deelicoon</b> ↑ rechtsboven</div>
-      <div>4. Kies <b>Sla op in Bestanden</b> of <b>Google Drive</b></div>
+      <div class="pdf-tip-title">📱 Opslaan op iPhone:</div>
+      <div><b>PDF:</b> tik op deelicoon ↑ → Sla op in Bestanden</div>
+      <div><b>Word:</b> bestand wordt direct gedownload</div>
     </div>
   </div>
 </div>
@@ -250,6 +252,55 @@ function hasContent(v){if(!v)return false;if(Array.isArray(v))return v.length>0;
 function renderSectionHTML(id,val){if(!val)return'<div class="empty">Niet vermeld</div>';if(currentTemplate==='wedstrijd'&&id==='meta')return`<div class="meta-grid">${[['📅 DATUM',val.datum],['🏠 THUISPLOEG',val.thuisploeg],['✈️ UITPLOEG',val.uitploeg],['🏆 UITSLAG',val.uitslag]].map(([k,v])=>`<div class="meta-cell"><div class="meta-label">${k}</div><div class="meta-val">${v||'—'}</div></div>`).join('')}</div>`;if(currentTemplate==='scouting'&&id==='info')return`<div class="meta-grid">${[['👤 NAAM',val.naam],['🎂 LEEFTIJD',val.leeftijd],['🏟️ CLUB',val.club],['🎯 POSITIE',val.positie]].map(([k,v])=>`<div class="meta-cell"><div class="meta-label">${k}</div><div class="meta-val">${v||'—'}</div></div>`).join('')}</div>`;if(currentTemplate==='scouting'&&id==='punten')return`<div class="punten-grid"><div><div class="punten-head" style="color:#6ee87a">✅ STERK</div>${val.sterk?.length?`<ul class="bullet-list">${val.sterk.map(s=>`<li>${s}</li>`).join('')}</ul>`:'<div class="empty">Niet vermeld</div>'}</div><div><div class="punten-head" style="color:#D2122E">⚠️ VERBETER</div>${val.verbeter?.length?`<ul class="bullet-list">${val.verbeter.map(s=>`<li>${s}</li>`).join('')}</ul>`:'<div class="empty">Niet vermeld</div>'}</div></div>`;if(currentTemplate==='scouting'&&id==='advies'){const k=val.aanbeveling==='Aanraden'?'#6ee87a':val.aanbeveling==='Nader bekijken'?'#f0c040':'#D2122E';return`<div class="advies-row"><div class="advies-badge" style="background:${k}22;border:1px solid ${k}77;color:${k}">${val.aanbeveling||'—'}</div>${val.cijfer?`<div class="advies-cijfer">${val.cijfer}<small>/10</small></div>`:''}</div>${val.toelichting?`<div class="advies-toelichting">${val.toelichting}</div>`:''}`;}if(Array.isArray(val)&&val.length)return`<ul class="bullet-list">${val.map(v=>`<li>${v}</li>`).join('')}</ul>`;return'<div class="empty">Niet vermeld</div>';}
 
 function openPDF(){const tmpl=TEMPLATES[currentTemplate],date=new Date().toLocaleDateString('nl-NL');let s='';tmpl.sections.forEach(sec=>{const val=structuredData?.[sec.id];let c='<p style="color:#999;font-style:italic">Niet vermeld</p>';if(val){if(currentTemplate==='wedstrijd'&&sec.id==='meta')c=`<table style="width:100%;border-collapse:collapse"><tr><td style="padding:5px 10px 5px 0;font-weight:bold;color:#555;width:90px">Datum</td><td>${val.datum||'—'}</td><td style="padding:5px 10px 5px 16px;font-weight:bold;color:#555">Thuisploeg</td><td>${val.thuisploeg||'—'}</td></tr><tr><td style="padding:5px 10px 5px 0;font-weight:bold;color:#555">Uitploeg</td><td>${val.uitploeg||'—'}</td><td style="padding:5px 10px 5px 16px;font-weight:bold;color:#555">Uitslag</td><td style="font-weight:bold;color:#D2122E">${val.uitslag||'—'}</td></tr></table>`;else if(currentTemplate==='scouting'&&sec.id==='info')c=`<table style="width:100%;border-collapse:collapse"><tr><td style="padding:5px 10px 5px 0;font-weight:bold;color:#555;width:90px">Naam</td><td>${val.naam||'—'}</td><td style="padding:5px 10px 5px 16px;font-weight:bold;color:#555">Leeftijd</td><td>${val.leeftijd||'—'}</td></tr><tr><td style="padding:5px 10px 5px 0;font-weight:bold;color:#555">Club</td><td>${val.club||'—'}</td><td style="padding:5px 10px 5px 16px;font-weight:bold;color:#555">Positie</td><td>${val.positie||'—'}</td></tr></table>`;else if(currentTemplate==='scouting'&&sec.id==='punten')c=`<table style="width:100%"><tr><td style="vertical-align:top;width:50%;padding-right:12px"><b style="color:#2e7d32">✅ Sterk</b><ul style="padding-left:18px;margin-top:6px">${(val.sterk||[]).map(x=>`<li style="line-height:1.7">${x}</li>`).join('')||'<li>—</li>'}</ul></td><td style="vertical-align:top"><b style="color:#c62828">⚠️ Verbeter</b><ul style="padding-left:18px;margin-top:6px">${(val.verbeter||[]).map(x=>`<li style="line-height:1.7">${x}</li>`).join('')||'<li>—</li>'}</ul></td></tr></table>`;else if(currentTemplate==='scouting'&&sec.id==='advies'){const k=val.aanbeveling==='Aanraden'?'#2e7d32':val.aanbeveling==='Nader bekijken'?'#e65100':'#c62828';c=`<div style="display:flex;align-items:center;gap:16px;margin-bottom:8px"><span style="background:${k};color:white;padding:6px 18px;border-radius:20px;font-weight:bold">${val.aanbeveling||'—'}</span><span style="font-size:20pt;font-weight:bold;color:#D2122E">${val.cijfer||'—'}<small style="font-size:10pt;color:#999">/10</small></span></div>${val.toelichting?`<p>${val.toelichting}</p>`:''}`;}else if(Array.isArray(val)&&val.length)c=`<ul style="padding-left:18px">${val.map(v=>`<li style="line-height:1.7;margin-bottom:2px">${v}</li>`).join('')}</ul>`;}s+=`<div style="margin-bottom:18px;border-left:4px solid #D2122E;padding-left:12px"><div style="font-weight:bold;color:#D2122E;text-transform:uppercase;font-size:11pt;margin-bottom:7px;padding-bottom:4px;border-bottom:1px solid #eee">${sec.icon} ${sec.label}</div>${c}</div>`;});const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${tmpl.label}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:12pt;color:#111;background:#fff}.bar{position:fixed;bottom:0;left:0;right:0;background:#D2122E;padding:14px 20px;display:flex;align-items:center;justify-content:space-between}.btn{background:#fff;color:#9e0e22;border:none;padding:11px 22px;border-radius:8px;font-size:13pt;font-weight:bold;cursor:pointer}@media print{.bar,.sp{display:none!important}}</style></head><body><div style="background:#D2122E;color:#fff;padding:18px 24px"><h1 style="font-size:20pt;margin-bottom:3px">${tmpl.emoji} ${tmpl.label}</h1><p style="font-size:10pt;opacity:.8">Gegenereerd op ${date} · Map: ${currentFolder}</p></div><div style="padding:18px 24px">${s}<div style="margin-top:24px;padding-top:8px;border-top:1px solid #ddd;font-size:9pt;color:#aaa">VoiceVerslag · ${date}</div></div><div class="sp" style="height:70px"></div><div class="bar"><span style="color:#fff;font-size:13pt;font-weight:bold">Opslaan als PDF</span><button class="btn" onclick="window.print()">🖨️ Sla op als PDF</button></div></body></html>`;const w=window.open('','_blank');if(w){w.document.write(html);w.document.close();}else alert('Sta pop-ups toe voor deze site.');}
+async function downloadWord(){
+  const {Document,Paragraph,TextRun,HeadingLevel,AlignmentType,Packer,BorderStyle}=docx;
+  const tmpl=TEMPLATES[currentTemplate];
+  const date=new Date().toLocaleDateString('nl-NL');
+  const children=[];
+
+  // Titel
+  children.push(new Paragraph({text:tmpl.label,heading:HeadingLevel.HEADING_1,alignment:AlignmentType.LEFT}));
+  children.push(new Paragraph({children:[new TextRun({text:`Gegenereerd op ${date} · Map: ${currentFolder}`,color:'888888',size:20})]}));
+  children.push(new Paragraph({text:''}));
+
+  tmpl.sections.forEach(sec=>{
+    const val=structuredData?.[sec.id];
+    children.push(new Paragraph({text:sec.label,heading:HeadingLevel.HEADING_2}));
+
+    if(!val){
+      children.push(new Paragraph({children:[new TextRun({text:'Niet vermeld',italics:true,color:'999999'})]}));
+    } else if(currentTemplate==='wedstrijd'&&sec.id==='meta'){
+      [['Datum',val.datum],['Thuisploeg',val.thuisploeg],['Uitploeg',val.uitploeg],['Uitslag',val.uitslag]].forEach(([k,v])=>{
+        children.push(new Paragraph({children:[new TextRun({text:k+': ',bold:true}),new TextRun(v||'—')]}));
+      });
+    } else if(currentTemplate==='scouting'&&sec.id==='info'){
+      [['Naam',val.naam],['Leeftijd',val.leeftijd],['Club',val.club],['Positie',val.positie]].forEach(([k,v])=>{
+        children.push(new Paragraph({children:[new TextRun({text:k+': ',bold:true}),new TextRun(v||'—')]}));
+      });
+    } else if(currentTemplate==='scouting'&&sec.id==='punten'){
+      children.push(new Paragraph({children:[new TextRun({text:'Sterke punten:',bold:true})]}));
+      (val.sterk||[]).forEach(s=>children.push(new Paragraph({text:'• '+s,indent:{left:360}})));
+      children.push(new Paragraph({children:[new TextRun({text:'Verbeterpunten:',bold:true})]}));
+      (val.verbeter||[]).forEach(s=>children.push(new Paragraph({text:'• '+s,indent:{left:360}})));
+    } else if(currentTemplate==='scouting'&&sec.id==='advies'){
+      children.push(new Paragraph({children:[new TextRun({text:'Aanbeveling: ',bold:true}),new TextRun(val.aanbeveling||'—')]}));
+      children.push(new Paragraph({children:[new TextRun({text:'Cijfer: ',bold:true}),new TextRun((val.cijfer||'—')+'/10')]}));
+      if(val.toelichting)children.push(new Paragraph({text:val.toelichting}));
+    } else if(Array.isArray(val)){
+      val.forEach(v=>children.push(new Paragraph({text:'• '+v,indent:{left:360}})));
+    }
+    children.push(new Paragraph({text:''}));
+  });
+
+  const doc=new Document({sections:[{properties:{},children}]});
+  const blob=await Packer.toBlob(doc);
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=tmpl.label.replace(/ /g,'_')+'_'+date.replace(/\//g,'-')+'.docx';
+  a.click();
+  URL.revokeObjectURL(url);
+}
 </script>
 </body>
 </html>
