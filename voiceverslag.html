@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>VoiceVerslag</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #1a0608; color: #f5f0ee; font-family: Georgia, serif; min-height: 100vh; }
+
+  /* Header */
+  .header { background: linear-gradient(135deg, #9e0e22, #D2122E 60%, #ff2a47); box-shadow: 0 4px 24px rgba(210,18,46,0.4); }
+  .strepen { display: flex; height: 4px; }
+  .strepen div { flex: 1; }
+  .strepen div:nth-child(odd) { background: rgba(255,255,255,0.25); }
+  .header-inner { padding: 15px 20px; display: flex; align-items: center; gap: 14px; }
+  .header-logo { width: 42px; height: 42px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); flex-shrink: 0; }
+  .header-title { font-weight: bold; font-size: 19px; letter-spacing: 1px; color: #fff; text-transform: uppercase; }
+  .header-sub { font-size: 11px; color: rgba(255,255,255,0.75); }
+  .header-ball { margin-left: auto; font-size: 26px; }
+
+  /* Content */
+  .content { padding: 20px 16px; max-width: 580px; margin: 0 auto; }
+
+  /* Steps */
+  .step { margin-bottom: 22px; }
+  .step-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .step-num { width: 24px; height: 24px; border-radius: 50%; background: #D2122E; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; color: #fff; flex-shrink: 0; }
+  .step-title { font-size: 11px; letter-spacing: 1.2px; color: #D2122E; text-transform: uppercase; font-weight: bold; }
+
+  /* Type buttons */
+  .type-row { display: flex; gap: 10px; }
+  .type-btn { flex: 1; padding: 13px 10px; border-radius: 10px; border: 2px solid #3a1218; background: #220b0e; color: #c8c0bc; cursor: pointer; font-size: 13px; font-family: Georgia, serif; transition: all 0.2s; text-align: center; }
+  .type-btn.active { border-color: #D2122E; background: rgba(210,18,46,0.18); color: #fff; font-weight: bold; }
+  .type-btn .emoji { font-size: 22px; margin-bottom: 4px; }
+
+  /* Folder chips */
+  .folder-row { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 8px; }
+  .folder-chip { padding: 6px 13px; border-radius: 16px; border: 1px solid #3a1218; background: #220b0e; color: #c8c0bc; cursor: pointer; font-size: 12px; font-family: Georgia, serif; }
+  .folder-chip.active { border: 2px solid #D2122E; background: rgba(210,18,46,0.2); color: #fff; }
+  .folder-add { border-style: dashed; background: transparent; color: #7a5a5e; }
+  .folder-input-row { display: flex; gap: 8px; margin-top: 6px; }
+  .folder-input { flex: 1; padding: 8px 12px; border-radius: 8px; background: #220b0e; border: 1px solid #3a1218; color: #fff; font-size: 13px; font-family: Georgia, serif; outline: none; }
+  .folder-input-btn { padding: 8px 16px; border-radius: 8px; border: none; background: #D2122E; color: #fff; cursor: pointer; font-size: 14px; font-weight: bold; }
+
+  /* Section tags */
+  .section-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .section-tag { padding: 5px 12px; border-radius: 8px; background: #220b0e; border: 1px solid #3a1218; font-size: 12px; color: #c8c0bc; }
+
+  /* Record button */
+  .record-wrap { text-align: center; padding: 14px 0 8px; }
+  .record-btn { width: 88px; height: 88px; border-radius: 50%; border: none; cursor: pointer; font-size: 32px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.3s; }
+  .record-btn.idle { background: radial-gradient(circle, #fff, #ddd); box-shadow: 0 0 0 5px rgba(255,255,255,0.1), 0 4px 20px rgba(0,0,0,0.4); }
+  .record-btn.recording { background: radial-gradient(circle, #ff1a35, #9e0e22); box-shadow: 0 0 0 10px rgba(210,18,46,0.2), 0 0 32px rgba(210,18,46,0.5); animation: recpulse 1.4s infinite; }
+  .record-btn.disabled { background: #333; cursor: not-allowed; }
+  .record-timer { margin-top: 8px; font-size: 20px; color: #D2122E; font-weight: bold; font-family: monospace; }
+  .record-label { margin-top: 8px; font-size: 12px; color: #6a4448; }
+  .record-label.active { color: #D2122E; font-weight: bold; }
+
+  /* Transcribing badge */
+  .transcribing-badge { display: inline-flex; align-items: center; gap: 7px; padding: 5px 14px; border-radius: 20px; background: rgba(210,18,46,0.15); border: 1px solid rgba(210,18,46,0.3); color: #D2122E; font-size: 12px; margin-bottom: 12px; }
+  .spin { animation: spin 1s linear infinite; display: inline-block; }
+
+  /* Transcript box */
+  .transcript-box { background: #220b0e; border-radius: 10px; padding: 14px; border: 1px solid #3a1218; margin-top: 12px; }
+  .transcript-label { font-size: 10px; color: #D2122E; margin-bottom: 5px; letter-spacing: 1px; font-weight: bold; }
+  .transcript-text { font-size: 13px; line-height: 1.75; color: #c8c0bc; max-height: 110px; overflow-y: auto; }
+  .transcript-clear { margin-top: 8px; padding: 4px 10px; border-radius: 6px; border: 1px solid #3a1218; background: transparent; color: #7a5a5e; font-size: 11px; cursor: pointer; font-family: Georgia, serif; }
+
+  /* Error box */
+  .error-box { margin-top: 10px; padding: 13px; border-radius: 10px; background: rgba(210,18,46,0.1); border: 1px solid rgba(210,18,46,0.3); font-size: 13px; color: #f5f0ee; line-height: 1.8; }
+  .error-title { font-weight: bold; color: #D2122E; margin-bottom: 6px; }
+  .error-generic { color: #ff8a7a; }
+
+  /* Process button */
+  .process-btn { width: 100%; padding: 15px; border-radius: 10px; border: none; background: linear-gradient(135deg, #D2122E, #9e0e22); color: #fff; font-size: 14px; font-family: Georgia, serif; cursor: pointer; letter-spacing: 0.5px; font-weight: bold; box-shadow: 0 4px 16px rgba(210,18,46,0.35); }
+  .process-btn:disabled { background: rgba(210,18,46,0.3); box-shadow: none; cursor: not-allowed; }
+
+  /* Accordion */
+  .accordion { display: flex; flex-direction: column; gap: 5px; }
+  .acc-item { border-radius: 10px; overflow: hidden; border: 1px solid #3a1218; background: #220b0e; transition: all 0.2s; }
+  .acc-item.open { border-color: rgba(210,18,46,0.8); background: rgba(210,18,46,0.08); }
+  .acc-btn { width: 100%; padding: 12px 14px; border: none; background: transparent; color: #c8c0bc; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-family: Georgia, serif; font-size: 13px; }
+  .acc-item.open .acc-btn { color: #fff; }
+  .acc-dot { width: 7px; height: 7px; border-radius: 50%; background: #D2122E; display: inline-block; margin-left: 8px; }
+  .acc-arrow { color: #D2122E; font-size: 11px; transition: transform 0.2s; }
+  .acc-item.open .acc-arrow { transform: rotate(180deg); }
+  .acc-body { padding: 2px 14px 14px; border-top: 1px solid #3a1218; }
+
+  /* Meta grid */
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .meta-cell { background: rgba(210,18,46,0.12); border-radius: 8px; padding: 9px 13px; border: 1px solid rgba(210,18,46,0.25); }
+  .meta-label { font-size: 10px; color: #D2122E; margin-bottom: 2px; letter-spacing: 0.8px; font-weight: bold; }
+  .meta-val { font-size: 14px; color: #fff; }
+
+  /* Bullet list */
+  .bullet-list { margin: 0; padding: 0 0 0 18px; }
+  .bullet-list li { font-size: 14px; color: #f5f0ee; line-height: 1.75; margin-bottom: 2px; }
+
+  /* Punten */
+  .punten-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .punten-head { font-size: 10px; font-weight: bold; margin-bottom: 7px; }
+
+  /* Advies */
+  .advies-row { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+  .advies-badge { padding: 8px 20px; border-radius: 20px; font-weight: bold; font-size: 14px; }
+  .advies-cijfer { font-size: 26px; font-weight: bold; color: #f0c040; }
+  .advies-cijfer small { font-size: 13px; color: #7a6a50; }
+  .advies-toelichting { font-size: 14px; color: #f5f0ee; line-height: 1.75; }
+
+  /* PDF button */
+  .pdf-btn { width: 100%; margin-top: 14px; padding: 15px; border-radius: 10px; border: 2px solid #fff; background: #fff; color: #9e0e22; font-size: 15px; font-family: Georgia, serif; cursor: pointer; font-weight: bold; box-shadow: 0 4px 16px rgba(255,255,255,0.15); }
+
+  /* PDF tip */
+  .pdf-tip { margin-top: 10px; padding: 12px 14px; border-radius: 8px; background: #220b0e; border: 1px solid #3a1218; font-size: 12px; color: #c8c0bc; line-height: 1.9; }
+  .pdf-tip-title { font-weight: bold; color: #D2122E; margin-bottom: 4px; }
+
+  /* Empty */
+  .empty { font-size: 12px; color: #7a5055; font-style: italic; }
+
+  /* Animations */
+  @keyframes recpulse {
+    0%   { box-shadow: 0 0 0 0 rgba(210,18,46,0.5), 0 0 32px rgba(210,18,46,0.5); }
+    70%  { box-shadow: 0 0 0 20px rgba(210,18,46,0), 0 0 32px rgba(210,18,46,0.2); }
+    100% { box-shadow: 0 0 0 0 rgba(210,18,46,0), 0 0 32px rgba(210,18,46,0.5); }
+  }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  button:active { opacity: 0.82; transform: scale(0.98); }
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-thumb { background: rgba(210,18,46,0.4); border-radius: 2px; }
+
+  /* PDF print page */
+  #pdf-page { display: none; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="strepen">
+    <div></div><div></div><div></div><div></div><div></div><div></div>
+    <div></div><div></div><div></div><div></div><div></div><div></div>
+  </div>
+  <div class="header-inner">
+    <div class="header-logo">🎙️</div>
+    <div>
+      <div class="header-title">VoiceVerslag</div>
+      <div class="header-sub">Inspreken · AI structureert · Opslaan als PDF</div>
+    </div>
+    <div class="header-ball">⚽</div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- Stap 1: Type -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">1</div>
+      <div class="step-title">Documenttype</div>
+    </div>
+    <div class="type-row">
+      <div class="type-btn active" id="btn-wedstrijd" onclick="setTemplate('wedstrijd')">
+        <div class="emoji">⚽</div>Wedstrijdverslag
+      </div>
+      <div class="type-btn" id="btn-scouting" onclick="setTemplate('scouting')">
+        <div class="emoji">🔍</div>Scoutingsrapport
+      </div>
+    </div>
+  </div>
+
+  <!-- Stap 2: Map -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">2</div>
+      <div class="step-title">Map</div>
+    </div>
+    <div class="folder-row" id="folder-row"></div>
+    <div id="folder-input-wrap" style="display:none">
+      <div class="folder-input-row">
+        <input class="folder-input" id="folder-input" placeholder="Mapnaam..." onkeydown="if(event.key==='Enter')addFolder()">
+        <button class="folder-input-btn" onclick="addFolder()">+</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stap 3: Secties -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">3</div>
+      <div class="step-title">Secties in dit document</div>
+    </div>
+    <div class="section-tags" id="section-tags"></div>
+    <div style="font-size:11px;color:#6a4448;margin-top:8px">Claude verdeelt je ingesproken tekst automatisch over deze secties.</div>
+  </div>
+
+  <!-- Stap 4: Opnemen -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">4</div>
+      <div class="step-title">Spreek in</div>
+    </div>
+    <div class="record-wrap">
+      <div id="transcribing-badge" class="transcribing-badge" style="display:none">
+        <span class="spin">⏳</span> Audio wordt getranscribeerd...
+      </div>
+      <button class="record-btn idle" id="record-btn" onclick="toggleRecord()">🎤</button>
+      <div id="record-timer" class="record-timer" style="display:none">00:00</div>
+      <div id="record-label" class="record-label">Tik om te beginnen</div>
+    </div>
+    <div id="error-box" style="display:none"></div>
+    <div id="transcript-box" class="transcript-box" style="display:none">
+      <div class="transcript-label">TRANSCRIPT</div>
+      <div class="transcript-text" id="transcript-text"></div>
+      <button class="transcript-clear" onclick="clearTranscript()">✕ Wissen</button>
+    </div>
+  </div>
+
+  <!-- Stap 5: Verwerken -->
+  <div class="step" id="step-process" style="display:none">
+    <div class="step-header">
+      <div class="step-num">5</div>
+      <div class="step-title">Verwerk met AI</div>
+    </div>
+    <button class="process-btn" id="process-btn" onclick="processTranscript()">✨ Verwerk</button>
+  </div>
+
+  <!-- Stap 6: Resultaat -->
+  <div class="step" id="step-result" style="display:none">
+    <div class="step-header">
+      <div class="step-num">6</div>
+      <div class="step-title">Gestructureerd resultaat</div>
+    </div>
+    <div class="accordion" id="accordion"></div>
+    <button class="pdf-btn" onclick="openPDF()">📄 Openen als PDF</button>
+    <div class="pdf-tip">
+      <div class="pdf-tip-title">📱 PDF opslaan op iPhone:</div>
+      <div>1. Tik op <b>📄 Openen als PDF</b> hierboven</div>
+      <div>2. Tik onderin op <b>Opslaan als PDF</b></div>
+      <div>3. Tik op het <b>deelicoon</b> ↑ rechtsboven</div>
+      <div>4. Kies <b>Sla op in Bestanden</b> of <b>Google Drive</b></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const TEMPLATES = {
+  wedstrijd: {
+    label: "Wedstrijdverslag",
+    emoji: "⚽",
+    sections: [
+      { id: "meta",       label: "Datum / Teams / Uitslag",       icon: "📋" },
+      { id: "opstelling", label: "Opstelling",                    icon: "🟥" },
+      { id: "eerste",     label: "Eerste helft",                  icon: "1️⃣" },
+      { id: "tweede",     label: "Tweede helft",                  icon: "2️⃣" },
+      { id: "hoogte",     label: "Hoogtepunten / bijzonderheden", icon: "⭐" },
+      { id: "spelers",    label: "Verslag per gescoute speler",   icon: "🔍" },
+      { id: "conclusie",  label: "Eindconclusie / beoordeling",   icon: "📝" },
+    ],
+    systemPrompt: `Je bent een professionele sportverslaggever. De gebruiker heeft een wedstrijdverslag ingesproken.
+Verwerk de tekst in onderstaande JSON-structuur. Elke sectie krijgt een array van bulletpoints.
+Als informatie ontbreekt gebruik dan een lege array [].
+Geef ALLEEN geldige JSON terug, geen uitleg, geen markdown, geen backticks.
+{"meta":{"datum":"...","thuisploeg":"...","uitploeg":"...","uitslag":"..."},"opstelling":["speler - positie"],"eerste":["bullet"],"tweede":["bullet"],"hoogte":["bullet"],"spelers":["Naam: beoordeling"],"conclusie":["bullet"]}`,
+  },
+  scouting: {
+    label: "Scoutingsrapport",
+    emoji: "🔍",
+    sections: [
+      { id: "info",     label: "Spelerinfo",                     icon: "👤" },
+      { id: "tech",     label: "Technische vaardigheden",        icon: "⚽" },
+      { id: "tactisch", label: "Tactisch inzicht",               icon: "🧠" },
+      { id: "fysiek",   label: "Fysieke kenmerken",              icon: "💪" },
+      { id: "mentaal",  label: "Mentaal / karakter",             icon: "🔥" },
+      { id: "punten",   label: "Sterke punten & verbeterpunten", icon: "⚖️" },
+      { id: "advies",   label: "Eindadvies / cijfer",            icon: "🏆" },
+    ],
+    systemPrompt: `Je bent een professionele voetbalscout. De gebruiker heeft een scoutingsrapport ingesproken.
+Verwerk de tekst in onderstaande JSON-structuur.
+Als informatie ontbreekt gebruik dan een lege array [].
+Geef ALLEEN geldige JSON terug, geen uitleg, geen markdown, geen backticks.
+{"info":{"naam":"...","leeftijd":"...","club":"...","positie":"..."},"tech":["bullet"],"tactisch":["bullet"],"fysiek":["bullet"],"mentaal":["bullet"],"punten":{"sterk":["..."],"verbeter":["..."]},"advies":{"aanbeveling":"Aanraden / Nader bekijken / Niet aanraden","cijfer":"7.5","toelichting":"..."}}`,
+  },
+};
+
+// State
+let currentTemplate = 'wedstrijd';
+let currentFolder = 'Wedstrijdverslagen';
+let folders = ['Wedstrijdverslagen', 'Scoutingsrapporten', 'U17', 'U19', 'Archief'];
+let isRecording = false;
+let transcript = '';
+let structuredData = null;
+let mediaRecorder = null;
+let chunks = [];
+let timerInterval = null;
+let recordSeconds = 0;
+let openSection = null;
+
+// Init
+renderFolders();
+renderSectionTags();
+
+function setTemplate(key) {
+  currentTemplate = key;
+  document.getElementById('btn-wedstrijd').className = 'type-btn' + (key === 'wedstrijd' ? ' active' : '');
+  document.getElementById('btn-scouting').className = 'type-btn' + (key === 'scouting' ? ' active' : '');
+  structuredData = null;
+  transcript = '';
+  document.getElementById('transcript-box').style.display = 'none';
+  document.getElementById('step-process').style.display = 'none';
+  document.getElementById('step-result').style.display = 'none';
+  renderSectionTags();
+}
+
+function renderFolders() {
+  const row = document.getElementById('folder-row');
+  row.innerHTML = folders.map(f =>
+    `<div class="folder-chip${f === currentFolder ? ' active' : ''}" onclick="selectFolder('${f}')"">📁 ${f}</div>`
+  ).join('') + `<div class="folder-chip folder-add" onclick="toggleFolderInput()">+ Nieuwe map</div>`;
+}
+
+function selectFolder(f) {
+  currentFolder = f;
+  renderFolders();
+}
+
+function toggleFolderInput() {
+  const w = document.getElementById('folder-input-wrap');
+  w.style.display = w.style.display === 'none' ? 'block' : 'none';
+}
+
+function addFolder() {
+  const input = document.getElementById('folder-input');
+  const name = input.value.trim();
+  if (name && !folders.includes(name)) {
+    folders.push(name);
+    currentFolder = name;
+  }
+  input.value = '';
+  document.getElementById('folder-input-wrap').style.display = 'none';
+  renderFolders();
+}
+
+function renderSectionTags() {
+  const tmpl = TEMPLATES[currentTemplate];
+  document.getElementById('section-tags').innerHTML = tmpl.sections
+    .map(s => `<div class="section-tag">${s.icon} ${s.label}</div>`).join('');
+}
+
+async function toggleRecord() {
+  if (isRecording) {
+    stopRecording();
+  } else {
+    await startRecording();
+  }
+}
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+      : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+      : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
+
+    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+    chunks = [];
+
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
+      showTranscribing(true);
+      try {
+        const base64 = await blobToBase64(blob);
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1000,
+            system: 'Je transcribeert gesproken Nederlands naar tekst. Geef ALLEEN de getranscribeerde tekst terug, geen uitleg of opmaak.',
+            messages: [{ role: 'user', content: [
+              { type: 'text', text: 'Transcribeer deze audio naar Nederlandse tekst:' },
+              { type: 'document', source: { type: 'base64', media_type: mimeType || 'audio/webm', data: base64 } }
+            ]}]
+          })
+        });
+        const data = await res.json();
+        transcript = data.content?.map(c => c.text || '').join('') || '';
+        showTranscribing(false);
+        showTranscript();
+      } catch(err) {
+        showTranscribing(false);
+        showError('Transcriptie mislukt: ' + err.message);
+      }
+    };
+
+    mediaRecorder.start(1000);
+    isRecording = true;
+    recordSeconds = 0;
+    setRecordUI('recording');
+    timerInterval = setInterval(() => {
+      recordSeconds++;
+      const m = String(Math.floor(recordSeconds/60)).padStart(2,'0');
+      const s = String(recordSeconds%60).padStart(2,'0');
+      document.getElementById('record-timer').textContent = m + ':' + s;
+    }, 1000);
+
+  } catch(err) {
+    showMicError();
+  }
+}
+
+function stopRecording() {
+  mediaRecorder?.stop();
+  clearInterval(timerInterval);
+  isRecording = false;
+  setRecordUI('idle');
+}
+
+function setRecordUI(state) {
+  const btn = document.getElementById('record-btn');
+  const timer = document.getElementById('record-timer');
+  const label = document.getElementById('record-label');
+  if (state === 'recording') {
+    btn.className = 'record-btn recording';
+    btn.textContent = '⏹';
+    timer.style.display = 'block';
+    label.textContent = '● OPNAME LOOPT — tik om te stoppen';
+    label.className = 'record-label active';
+  } else if (state === 'disabled') {
+    btn.className = 'record-btn disabled';
+    btn.textContent = '🔄';
+    timer.style.display = 'none';
+    label.textContent = 'Even geduld...';
+    label.className = 'record-label';
+  } else {
+    btn.className = 'record-btn idle';
+    btn.textContent = '🎤';
+    timer.style.display = 'none';
+    label.textContent = 'Tik om te beginnen';
+    label.className = 'record-label';
+  }
+}
+
+function showTranscribing(show) {
+  document.getElementById('transcribing-badge').style.display = show ? 'inline-flex' : 'none';
+  if (show) setRecordUI('disabled');
+  else setRecordUI('idle');
+}
+
+function showTranscript() {
+  if (!transcript) return;
+  document.getElementById('transcript-text').textContent = transcript;
+  document.getElementById('transcript-box').style.display = 'block';
+  document.getElementById('step-process').style.display = 'block';
+  const tmpl = TEMPLATES[currentTemplate];
+  document.getElementById('process-btn').textContent = '✨ Verwerk als ' + tmpl.label;
+  document.getElementById('error-box').style.display = 'none';
+}
+
+function clearTranscript() {
+  transcript = '';
+  structuredData = null;
+  document.getElementById('transcript-box').style.display = 'none';
+  document.getElementById('step-process').style.display = 'none';
+  document.getElementById('step-result').style.display = 'none';
+}
+
+function showError(msg) {
+  const box = document.getElementById('error-box');
+  box.style.display = 'block';
+  box.innerHTML = `<div class="error-title">⚠️ Fout</div><div class="error-generic">${msg}</div>`;
+}
+
+function showMicError() {
+  const box = document.getElementById('error-box');
+  box.style.display = 'block';
+  box.className = 'error-box';
+  box.innerHTML = `
+    <div class="error-title">📱 Microfoon toestaan in Safari:</div>
+    <div>1. Ga naar <b>Instellingen</b></div>
+    <div>2. Scroll naar <b>Apps</b> → <b>Safari</b></div>
+    <div>3. Tik op <b>Microfoon</b> → <b>Toestaan</b></div>
+    <div>4. Herlaad deze pagina en probeer opnieuw</div>
+  `;
+}
+
+async function processTranscript() {
+  if (!transcript.trim()) return;
+  const btn = document.getElementById('process-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Claude verdeelt de tekst over de secties...';
+  document.getElementById('step-result').style.display = 'none';
+
+  try {
+    const tmpl = TEMPLATES[currentTemplate];
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: tmpl.systemPrompt,
+        messages: [{ role: 'user', content: transcript }]
+      })
+    });
+    const data = await res.json();
+    const raw = data.content?.map(c => c.text || '').join('').replace(/```json|```/g, '').trim();
+    structuredData = JSON.parse(raw);
+    btn.disabled = false;
+    btn.textContent = '✨ Verwerk als ' + tmpl.label;
+    renderAccordion();
+    document.getElementById('step-result').style.display = 'block';
+    openSection = TEMPLATES[currentTemplate].sections[0].id;
+    renderAccordion();
+  } catch(err) {
+    btn.disabled = false;
+    btn.textContent = '✨ Verwerk opnieuw';
+    showError('Verwerkingsfout: ' + err.message);
+  }
+}
+
+function renderAccordion() {
+  const tmpl = TEMPLATES[currentTemplate];
+  const acc = document.getElementById('accordion');
+  acc.innerHTML = tmpl.sections.map(sec => {
+    const val = structuredData?.[sec.id];
+    const filled = hasContent(val);
+    const isOpen = openSection === sec.id;
+    return `
+      <div class="acc-item${isOpen ? ' open' : ''}" id="acc-${sec.id}">
+        <button class="acc-btn" onclick="toggleSection('${sec.id}')">
+          <span>${sec.icon} ${sec.label}${filled ? '<span class="acc-dot"></span>' : ''}</span>
+          <span class="acc-arrow">▼</span>
+        </button>
+        ${isOpen ? `<div class="acc-body">${renderSectionHTML(sec.id, val)}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function toggleSection(id) {
+  openSection = openSection === id ? null : id;
+  renderAccordion();
+}
+
+function hasContent(val) {
+  if (!val) return false;
+  if (Array.isArray(val)) return val.length > 0;
+  if (typeof val === 'object') return Object.values(val).some(v => v && v !== 'niet vermeld' && (!Array.isArray(v) || v.length > 0));
+  return !!val;
+}
+
+function renderSectionHTML(secId, val) {
+  if (!val) return '<div class="empty">Niet vermeld</div>';
+  const tmpl = TEMPLATES[currentTemplate];
+
+  if (currentTemplate === 'wedstrijd' && secId === 'meta') {
+    return `<div class="meta-grid">
+      ${[['📅 DATUM', val.datum], ['🏠 THUISPLOEG', val.thuisploeg], ['✈️ UITPLOEG', val.uitploeg], ['🏆 UITSLAG', val.uitslag]].map(([k,v]) =>
+        `<div class="meta-cell"><div class="meta-label">${k}</div><div class="meta-val">${v||'—'}</div></div>`
+      ).join('')}
+    </div>`;
+  }
+  if (currentTemplate === 'scouting' && secId === 'info') {
+    return `<div class="meta-grid">
+      ${[['👤 NAAM', val.naam], ['🎂 LEEFTIJD', val.leeftijd], ['🏟️ CLUB', val.club], ['🎯 POSITIE', val.positie]].map(([k,v]) =>
+        `<div class="meta-cell"><div class="meta-label">${k}</div><div class="meta-val">${v||'—'}</div></div>`
+      ).join('')}
+    </div>`;
+  }
+  if (currentTemplate === 'scouting' && secId === 'punten') {
+    return `<div class="punten-grid">
+      <div><div class="punten-head" style="color:#6ee87a">✅ STERK</div>
+        ${val.sterk?.length ? `<ul class="bullet-list">${val.sterk.map(s=>`<li>${s}</li>`).join('')}</ul>` : '<div class="empty">Niet vermeld</div>'}
+      </div>
+      <div><div class="punten-head" style="color:#D2122E">⚠️ VERBETER</div>
+        ${val.verbeter?.length ? `<ul class="bullet-list">${val.verbeter.map(s=>`<li>${s}</li>`).join('')}</ul>` : '<div class="empty">Niet vermeld</div>'}
+      </div>
+    </div>`;
+  }
+  if (currentTemplate === 'scouting' && secId === 'advies') {
+    const kleur = val.aanbeveling === 'Aanraden' ? '#6ee87a' : val.aanbeveling === 'Nader bekijken' ? '#f0c040' : '#D2122E';
+    return `<div class="advies-row">
+      <div class="advies-badge" style="background:${kleur}22;border:1px solid ${kleur}77;color:${kleur}">${val.aanbeveling||'—'}</div>
+      ${val.cijfer ? `<div class="advies-cijfer">${val.cijfer}<small>/10</small></div>` : ''}
+    </div>
+    ${val.toelichting ? `<div class="advies-toelichting">${val.toelichting}</div>` : ''}`;
+  }
+  if (Array.isArray(val) && val.length) {
+    return `<ul class="bullet-list">${val.map(v=>`<li>${v}</li>`).join('')}</ul>`;
+  }
+  return '<div class="empty">Niet vermeld</div>';
+}
+
+function openPDF() {
+  const tmpl = TEMPLATES[currentTemplate];
+  const date = new Date().toLocaleDateString('nl-NL');
+  let sections = '';
+
+  tmpl.sections.forEach(sec => {
+    const val = structuredData?.[sec.id];
+    let content = '<p style="color:#999;font-style:italic">Niet vermeld</p>';
+    if (val) {
+      if (currentTemplate === 'wedstrijd' && sec.id === 'meta') {
+        content = `<table style="width:100%;border-collapse:collapse"><tr><td style="padding:5px 10px 5px 0;font-weight:bold;color:#555;width:90px">Datum</td><td style="padding:5px 0">${val.datum||'—'}</td><td style="padding:5px 10px 5px 16px;font-weight:bold;color:#555;width:90px">Thuisploeg</td><td style="padding:5px 0">${val.thuisploeg||'—'}</td></tr><tr><td style="padding:5px 10px 5px 0;font-weight:bold;color:#555">Uitploeg</td><td>${val.uitploeg||'—'}</td><td style="padding:5px 10px 5px 16px;font-weight:bold;color:#555">Uitslag</td><td style="font-weight:bold;color:#D2122E;font-size:14pt">${val.uitslag||'—'}</td></tr></table>`;
+      } else if (currentTemplate === 'scouting' && sec.id === 'info') {
+        content = `<table style="width:100%;border-collapse:collapse"><tr><td style="padding:5px 10px 5px 0;font-weight:bold;color:#555;width:90px">Naam</td><td>${val.naam||'—'}</td><td style="padding:5px 10px 5px 16px;font-weight:bold;color:#555;width:90px">Leeftijd</td><td>${val.leeftijd||'—'}</td></tr><tr><td style="padding:5px 10px 5px 0;font-weight:bold;color:#555">Club</td><td>${val.club||'—'}</td><td style="padding:5px 10px 5px 16px;font-weight:bold;color:#555">Positie</td><td>${val.positie||'—'}</td></tr></table>`;
+      } else if (currentTemplate === 'scouting' && sec.id === 'punten') {
+        content = `<table style="width:100%;border-collapse:collapse"><tr><td style="vertical-align:top;width:50%;padding-right:12px"><b style="color:#2e7d32">✅ Sterke punten</b><ul style="padding-left:18px;margin-top:6px">${(val.sterk||[]).map(s=>`<li style="line-height:1.7">${s}</li>`).join('')||'<li>—</li>'}</ul></td><td style="vertical-align:top"><b style="color:#c62828">⚠️ Verbeterpunten</b><ul style="padding-left:18px;margin-top:6px">${(val.verbeter||[]).map(s=>`<li style="line-height:1.7">${s}</li>`).join('')||'<li>—</li>'}</ul></td></tr></table>`;
+      } else if (currentTemplate === 'scouting' && sec.id === 'advies') {
+        const k = val.aanbeveling==='Aanraden'?'#2e7d32':val.aanbeveling==='Nader bekijken'?'#e65100':'#c62828';
+        content = `<div style="display:flex;align-items:center;gap:16px;margin-bottom:8px"><span style="background:${k};color:white;padding:6px 18px;border-radius:20px;font-weight:bold">${val.aanbeveling||'—'}</span><span style="font-size:22pt;font-weight:bold;color:#D2122E">${val.cijfer||'—'}<small style="font-size:11pt;color:#999">/10</small></span></div>${val.toelichting?`<p style="line-height:1.7">${val.toelichting}</p>`:''}`;
+      } else if (Array.isArray(val) && val.length) {
+        content = `<ul style="padding-left:18px">${val.map(v=>`<li style="line-height:1.7;margin-bottom:2px">${v}</li>`).join('')}</ul>`;
+      }
+    }
+    sections += `<div style="margin-bottom:18px;border-left:4px solid #D2122E;padding-left:12px">
+      <div style="font-weight:bold;color:#D2122E;text-transform:uppercase;font-size:11pt;letter-spacing:.5px;margin-bottom:7px;padding-bottom:4px;border-bottom:1px solid #eee">${sec.icon} ${sec.label}</div>
+      ${content}
+    </div>`;
+  });
+
+  const html = `<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${tmpl.label}</title>
+  <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:12pt;color:#111;background:#fff}.savebar{position:fixed;bottom:0;left:0;right:0;background:#D2122E;padding:14px 20px;display:flex;align-items:center;justify-content:space-between}.savebtn{background:#fff;color:#9e0e22;border:none;padding:11px 22px;border-radius:8px;font-size:14pt;font-weight:bold;cursor:pointer}@media print{.savebar,.spacer{display:none!important}}</style>
+  </head><body>
+  <div style="background:#D2122E;color:#fff;padding:18px 24px;margin-bottom:0"><h1 style="font-size:20pt;margin-bottom:3px">${tmpl.emoji} ${tmpl.label}</h1><p style="font-size:10pt;opacity:.8">Gegenereerd op ${date} · Map: ${currentFolder}</p></div>
+  <div style="display:flex;height:5px">${[...Array(14)].map((_,i)=>`<div style="flex:1;background:${i%2===0?'rgba(255,255,255,.3)':'transparent'}"></div>`).join('')}</div>
+  <div style="padding:18px 24px">${sections}<div style="margin-top:24px;padding-top:8px;border-top:1px solid #ddd;font-size:9pt;color:#aaa">VoiceVerslag · ${date} · ${currentFolder}</div></div>
+  <div class="spacer" style="height:70px"></div>
+  <div class="savebar"><span style="color:#fff;font-size:14pt;font-weight:bold">Opslaan als PDF</span><button class="savebtn" onclick="window.print()">🖨️ Sla op als PDF</button></div>
+  </body></html>`;
+
+  const w = window.open('', '_blank');
+  if (w) { w.document.write(html); w.document.close(); }
+  else { alert('Pop-ups zijn geblokkeerd. Sta pop-ups toe voor deze website.'); }
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+</script>
+</body>
+</html>
