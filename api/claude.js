@@ -1,30 +1,343 @@
-export const config = { api: { bodyParser: true } };
- 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).end();
- 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'API key niet geconfigureerd' });
-  }
- 
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify(req.body),
-    });
-    const data = await response.json();
-    res.status(response.status).json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>VoiceVerslag</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #1a0608; color: #f5f0ee; font-family: Georgia, serif; min-height: 100vh; }
+  .header { background: linear-gradient(135deg, #9e0e22, #D2122E 60%, #ff2a47); box-shadow: 0 4px 24px rgba(210,18,46,0.4); }
+  .strepen { display: flex; height: 4px; }
+  .strepen div { flex: 1; }
+  .strepen div:nth-child(odd) { background: rgba(255,255,255,0.25); }
+  .header-inner { padding: 15px 20px; display: flex; align-items: center; gap: 14px; }
+  .header-logo { width: 42px; height: 42px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); flex-shrink: 0; }
+  .header-title { font-weight: bold; font-size: 19px; letter-spacing: 1px; color: #fff; text-transform: uppercase; }
+  .header-sub { font-size: 11px; color: rgba(255,255,255,0.75); }
+  .header-ball { margin-left: auto; font-size: 26px; }
+  .content { padding: 20px 16px; max-width: 580px; margin: 0 auto; }
+  .step { margin-bottom: 22px; }
+  .step-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .step-num { width: 24px; height: 24px; border-radius: 50%; background: #D2122E; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; color: #fff; flex-shrink: 0; }
+  .step-title { font-size: 11px; letter-spacing: 1.2px; color: #D2122E; text-transform: uppercase; font-weight: bold; }
+  .folder-row { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 8px; }
+  .folder-chip { padding: 6px 13px; border-radius: 16px; border: 1px solid #3a1218; background: #220b0e; color: #c8c0bc; cursor: pointer; font-size: 12px; font-family: Georgia, serif; }
+  .folder-chip.active { border: 2px solid #D2122E; background: rgba(210,18,46,0.2); color: #fff; }
+  .folder-add { border-style: dashed; background: transparent; color: #7a5a5e; }
+  .folder-input-row { display: flex; gap: 8px; margin-top: 6px; }
+  .folder-input { flex: 1; padding: 8px 12px; border-radius: 8px; background: #220b0e; border: 1px solid #3a1218; color: #fff; font-size: 13px; font-family: Georgia, serif; outline: none; }
+  .folder-input-btn { padding: 8px 16px; border-radius: 8px; border: none; background: #D2122E; color: #fff; cursor: pointer; font-size: 14px; font-weight: bold; }
+  .section-tags { display: flex; flex-direction: column; gap: 4px; }
+  .sec-group { background: #220b0e; border: 1px solid #3a1218; border-radius: 10px; overflow: hidden; }
+  .sec-group-title { padding: 8px 12px; background: rgba(210,18,46,0.18); font-size: 11px; font-weight: bold; color: #D2122E; letter-spacing: 1px; text-transform: uppercase; }
+  .sec-fields { padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; }
+  .sec-field { font-size: 12px; color: #c8c0bc; line-height: 1.5; }
+  .sec-field .lbl { color: #e8c0c4; font-weight: bold; }
+  .record-wrap { text-align: center; padding: 14px 0 8px; }
+  .record-btn { width: 88px; height: 88px; border-radius: 50%; border: none; cursor: pointer; font-size: 32px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.3s; }
+  .record-btn.idle { background: radial-gradient(circle, #fff, #ddd); box-shadow: 0 0 0 5px rgba(255,255,255,0.1), 0 4px 20px rgba(0,0,0,0.4); }
+  .record-btn.recording { background: radial-gradient(circle, #ff1a35, #9e0e22); box-shadow: 0 0 0 10px rgba(210,18,46,0.2), 0 0 32px rgba(210,18,46,0.5); animation: recpulse 1.4s infinite; }
+  .record-timer { margin-top: 8px; font-size: 20px; color: #D2122E; font-weight: bold; font-family: monospace; }
+  .record-label { margin-top: 8px; font-size: 12px; color: #6a4448; }
+  .record-label.active { color: #D2122E; font-weight: bold; }
+  .live-text { background: #220b0e; border-radius: 10px; padding: 12px 14px; border: 1px solid #3a1218; margin-top: 12px; min-height: 60px; font-size: 13px; line-height: 1.75; color: #c8c0bc; display: none; }
+  .live-label { font-size: 10px; color: #D2122E; margin-bottom: 5px; letter-spacing: 1px; font-weight: bold; }
+  .transcript-box { background: #220b0e; border-radius: 10px; padding: 14px; border: 1px solid #3a1218; margin-top: 12px; }
+  .transcript-label { font-size: 10px; color: #D2122E; margin-bottom: 5px; letter-spacing: 1px; font-weight: bold; }
+  .transcript-text { font-size: 13px; line-height: 1.75; color: #c8c0bc; max-height: 110px; overflow-y: auto; }
+  .transcript-clear { margin-top: 8px; padding: 4px 10px; border-radius: 6px; border: 1px solid #3a1218; background: transparent; color: #7a5a5e; font-size: 11px; cursor: pointer; font-family: Georgia, serif; }
+  .error-box { margin-top: 10px; padding: 13px; border-radius: 10px; background: rgba(210,18,46,0.1); border: 1px solid rgba(210,18,46,0.3); font-size: 13px; color: #f5f0ee; line-height: 1.8; }
+  .error-title { font-weight: bold; color: #D2122E; margin-bottom: 6px; }
+  .error-generic { color: #ff8a7a; font-size: 11px; word-break: break-all; }
+  .process-btn { width: 100%; padding: 15px; border-radius: 10px; border: none; background: linear-gradient(135deg, #D2122E, #9e0e22); color: #fff; font-size: 14px; font-family: Georgia, serif; cursor: pointer; letter-spacing: 0.5px; font-weight: bold; box-shadow: 0 4px 16px rgba(210,18,46,0.35); }
+  .process-btn:disabled { background: rgba(210,18,46,0.3); box-shadow: none; cursor: not-allowed; }
+  .accordion { display: flex; flex-direction: column; gap: 5px; }
+  .acc-item { border-radius: 10px; overflow: hidden; border: 1px solid #3a1218; background: #220b0e; }
+  .acc-item.open { border-color: rgba(210,18,46,0.8); background: rgba(210,18,46,0.08); }
+  .acc-btn { width: 100%; padding: 12px 14px; border: none; background: transparent; color: #c8c0bc; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-family: Georgia, serif; font-size: 13px; }
+  .acc-item.open .acc-btn { color: #fff; }
+  .acc-dot { width: 7px; height: 7px; border-radius: 50%; background: #D2122E; display: inline-block; margin-left: 8px; }
+  .acc-arrow { color: #D2122E; font-size: 11px; transition: transform 0.2s; }
+  .acc-item.open .acc-arrow { transform: rotate(180deg); }
+  .acc-body { padding: 2px 14px 14px; border-top: 1px solid #3a1218; }
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .meta-cell { background: rgba(210,18,46,0.12); border-radius: 8px; padding: 9px 13px; border: 1px solid rgba(210,18,46,0.25); }
+  .meta-label { font-size: 10px; color: #D2122E; margin-bottom: 2px; letter-spacing: 0.8px; font-weight: bold; }
+  .meta-val { font-size: 14px; color: #fff; }
+  .bullet-list { margin: 0; padding: 0 0 0 18px; }
+  .bullet-list li { font-size: 14px; color: #f5f0ee; line-height: 1.75; margin-bottom: 2px; }
+  .abcd-badge { display: inline-block; padding: 4px 14px; border-radius: 6px; font-size: 15px; font-weight: bold; border: 1px solid #3a1218; background: #1a0608; color: #7a5a5e; }
+  .abcd-badge.score-A { background: rgba(46,160,67,0.25); border-color: #2ea043; color: #6ee87a; }
+  .abcd-badge.score-B { background: rgba(240,192,64,0.2); border-color: #f0c040; color: #f0c040; }
+  .abcd-badge.score-C { background: rgba(210,100,18,0.2); border-color: #d26412; color: #f0a040; }
+  .abcd-badge.score-D { background: rgba(210,18,46,0.2); border-color: #D2122E; color: #ff8a7a; }
+  .abcd-block { background: rgba(210,18,46,0.07); border-radius: 8px; padding: 10px 12px; border: 1px solid rgba(210,18,46,0.18); margin-bottom: 7px; }
+  .abcd-block-label { font-size: 10px; color: #D2122E; font-weight: bold; letter-spacing: 0.8px; margin-bottom: 6px; }
+  .abcd-onderbouwing { font-size: 12px; color: #c8c0bc; line-height: 1.6; font-style: italic; margin-top: 5px; }
+  .speler-card { margin-bottom: 14px; padding: 12px; background: rgba(210,18,46,0.06); border-radius: 10px; border: 1px solid #3a1218; }
+  .speler-naam { font-weight: bold; color: #fff; font-size: 15px; margin-bottom: 10px; }
+  .oordeel-badge { display: inline-block; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: bold; margin-bottom: 8px; }
+  .wedstrijden-tabel { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .wedstrijden-tabel th { background: rgba(210,18,46,0.3); color: #fff; padding: 7px 8px; text-align: left; font-size: 10px; letter-spacing: 0.8px; }
+  .wedstrijden-tabel td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.07); color: #c8c0bc; }
+  .pdf-btn { width: 100%; margin-top: 14px; padding: 15px; border-radius: 10px; border: 2px solid #fff; background: #fff; color: #9e0e22; font-size: 15px; font-family: Georgia, serif; cursor: pointer; font-weight: bold; }
+  .pdf-tip { margin-top: 10px; padding: 12px 14px; border-radius: 8px; background: #220b0e; border: 1px solid #3a1218; font-size: 12px; color: #c8c0bc; line-height: 1.9; }
+  .pdf-tip-title { font-weight: bold; color: #D2122E; margin-bottom: 4px; }
+  .empty { font-size: 12px; color: #7a5055; font-style: italic; }
+  @keyframes recpulse { 0% { box-shadow: 0 0 0 0 rgba(210,18,46,0.5); } 70% { box-shadow: 0 0 0 20px rgba(210,18,46,0); } 100% { box-shadow: 0 0 0 0 rgba(210,18,46,0); } }
+  button:active { opacity: 0.82; }
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-thumb { background: rgba(210,18,46,0.4); border-radius: 2px; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js"></script>
+</head>
+<body>
+<div class="header">
+  <div class="strepen"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+  <div class="header-inner">
+    <div class="header-logo">🎙️</div>
+    <div><div class="header-title">VoiceVerslag</div><div class="header-sub">Inspreken · AI structureert · Opslaan als PDF</div></div>
+    <div class="header-ball">⚽</div>
+  </div>
+</div>
+<div class="content">
+  <div class="step">
+    <div class="step-header"><div class="step-num">1</div><div class="step-title">Map</div></div>
+    <div class="folder-row" id="folder-row"></div>
+    <div id="folder-input-wrap" style="display:none">
+      <div class="folder-input-row">
+        <input class="folder-input" id="folder-input" placeholder="Mapnaam..." onkeydown="if(event.key==='Enter')addFolder()">
+        <button class="folder-input-btn" onclick="addFolder()">+</button>
+      </div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-header"><div class="step-num">2</div><div class="step-title">Secties in dit verslag</div></div>
+    <div class="section-tags" id="section-tags"></div>
+    <div style="font-size:11px;color:#6a4448;margin-top:8px">Claude verdeelt je ingesproken tekst automatisch over deze secties.</div>
+  </div>
+  <div class="step">
+    <div class="step-header"><div class="step-num">3</div><div class="step-title">Spreek in</div></div>
+    <div class="record-wrap">
+      <button class="record-btn idle" id="record-btn" onclick="toggleRecord()">🎤</button>
+      <div id="record-timer" class="record-timer" style="display:none">00:00</div>
+      <div id="record-label" class="record-label">Tik om te beginnen</div>
+    </div>
+    <div id="live-box" class="live-text">
+      <div class="live-label">LIVE TRANSCRIPT</div>
+      <div id="live-text"></div>
+    </div>
+    <div id="error-box" style="display:none"></div>
+    <div id="transcript-box" class="transcript-box" style="display:none">
+      <div class="transcript-label">TRANSCRIPT</div>
+      <div class="transcript-text" id="transcript-text"></div>
+      <button class="transcript-clear" onclick="clearTranscript()">✕ Wissen en opnieuw</button>
+    </div>
+  </div>
+  <div class="step" id="step-process" style="display:none">
+    <div class="step-header"><div class="step-num">4</div><div class="step-title">Verwerk met AI</div></div>
+    <button class="process-btn" id="process-btn" onclick="processTranscript()">✨ Verwerk verslag</button>
+  </div>
+  <div class="step" id="step-result" style="display:none">
+    <div class="step-header"><div class="step-num">5</div><div class="step-title">Gestructureerd resultaat</div></div>
+    <div class="accordion" id="accordion"></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="pdf-btn" style="flex:1;margin-top:0" onclick="openPDF()">📄 PDF</button>
+      <button class="pdf-btn" style="flex:1;margin-top:0;background:#1a3a6e;border-color:#1a3a6e;color:#fff" onclick="downloadWord()">📝 Word</button>
+    </div>
+    <div class="pdf-tip">
+      <div class="pdf-tip-title">📱 Opslaan op iPhone:</div>
+      <div><b>PDF:</b> tik op deelicoon ↑ → Sla op in Bestanden</div>
+      <div><b>Word:</b> tik op deelicoon ↑ → open in Word-app</div>
+    </div>
+  </div>
+</div>
+<script>
+const SECTIONS=[{id:'scout_info',label:'Scout & wedstrijdinfo',icon:'📋'},{id:'wedstrijden',label:'Geziene wedstrijden',icon:'📅'},{id:'wedstrijd',label:'Wedstrijdverloop',icon:'⚽'},{id:'spelers',label:'Beoordeling per speler',icon:'🔍'},{id:'conclusie',label:'Eindconclusie & oordeel',icon:'🏆'}];
+
+const SYSTEM_PROMPT=`Je bent een professionele voetbalscout bij Ajax. Verwerk de ingesproken tekst in het officiële Ajax scoutingsformaat.
+
+ABCD-scores:
+A = Verschilmaker op Champions League niveau
+B = Verschilmaker op Ajax 1 niveau
+C = Verschilmaker op BVO (Eredivisie / KKD) niveau
+D = Geen verschilmaker
+
+Bijdrage = huidige bijdrage. Potentie = toekomstig niveau.
+Voorlopig oordeel per speler: kies uit "Ongeschikt", "Blijven volgen", "Stage (ART/AVS)", of "Direct aannemen".
+Als informatie ontbreekt gebruik null of lege string.
+Geef ALLEEN geldige JSON terug, geen uitleg, geen backticks.
+
+{"scout_info":{"naam_scout":"...","weeknummer":"...","ring":"...","datum":"..."},"wedstrijden":[{"datum":"...","club":"...","team":"...","tegenstander":"...","team_teg":"...","opmerking":"..."}],"opmerkingen_wedstrijden":"...","wedstrijd":{"thuisploeg":"...","uitploeg":"...","uitslag":"...","eerste_helft":["bullet"],"tweede_helft":["bullet"],"hoogtepunten":["bullet"]},"spelers":[{"voornaam":"...","naam":"...","geb_jaar":"...","club":"...","team":"...","positie":"...","voorkeursbeen":"...","eigenschappen":"...","tech":{"score":"A","onderbouwing":"..."},"spelint":{"score":"B","onderbouwing":"..."},"grit":{"score":"A","onderbouwing":"..."},"atletisch":{"score":"C","onderbouwing":"..."},"bijdrage":"B","potentie":"A","bijdrage_uitleg":"...","oordeel":"Blijven volgen","conclusie":"..."}],"conclusie":"..."}`;
+
+let currentFolder='Verslagen',folders=['Verslagen','U17','U19','Archief'],isRecording=false,transcript='',structuredData=null,recognition=null,timerInterval=null,recordSeconds=0,openSection=null,finalTranscript='';
+
+renderFolders();renderSectionTags();
+
+function renderFolders(){document.getElementById('folder-row').innerHTML=folders.map(f=>`<div class="folder-chip${f===currentFolder?' active':''}" onclick="selectFolder('${f}')">📁 ${f}</div>`).join('')+`<div class="folder-chip folder-add" onclick="toggleFolderInput()">+ Nieuwe map</div>`;}
+function selectFolder(f){currentFolder=f;renderFolders();}
+function toggleFolderInput(){const w=document.getElementById('folder-input-wrap');w.style.display=w.style.display==='none'?'block':'none';}
+function addFolder(){const i=document.getElementById('folder-input'),n=i.value.trim();if(n&&!folders.includes(n)){folders.push(n);currentFolder=n;}i.value='';document.getElementById('folder-input-wrap').style.display='none';renderFolders();}
+
+function renderSectionTags(){
+  const abcd='<span style="color:#7a5a5e;font-size:11px">☐ A &nbsp;☐ B &nbsp;☐ C &nbsp;☐ D</span>';
+  document.getElementById('section-tags').innerHTML=`
+    <div class="sec-group"><div class="sec-group-title">📋 Scout & wedstrijdinfo</div><div class="sec-fields"><div class="sec-field"><span class="lbl">Naam scout</span> · <span class="lbl">Weeknummer</span> · <span class="lbl">Ring</span> · <span class="lbl">Datum</span></div></div></div>
+    <div class="sec-group"><div class="sec-group-title">📅 Geziene wedstrijden</div><div class="sec-fields"><div class="sec-field"><span class="lbl">Datum</span> · <span class="lbl">Club</span> · <span class="lbl">Team</span> · <span class="lbl">Tegenstander</span> · <span class="lbl">Opmerking</span></div></div></div>
+    <div class="sec-group"><div class="sec-group-title">⚽ Wedstrijdverloop</div><div class="sec-fields"><div class="sec-field"><span class="lbl">Thuisploeg</span> · <span class="lbl">Uitploeg</span> · <span class="lbl">Uitslag</span></div><div class="sec-field">Eerste helft · Tweede helft · Hoogtepunten</div></div></div>
+    <div class="sec-group"><div class="sec-group-title">🔍 Beoordeling per speler</div><div class="sec-fields">
+      <div class="sec-field"><span class="lbl">Voornaam</span> · <span class="lbl">Naam</span> · <span class="lbl">Geb. jaar</span> · <span class="lbl">Club</span> · <span class="lbl">Team</span> · <span class="lbl">Positie</span> · <span class="lbl">Voorkeursbeen</span></div>
+      <div class="sec-field"><span class="lbl">Functionele techniek</span> ${abcd} + onderbouwing</div>
+      <div class="sec-field"><span class="lbl">Spelinteligentie</span> ${abcd} + onderbouwing</div>
+      <div class="sec-field"><span class="lbl">GRIT / Passie & Attitude</span> ${abcd} + onderbouwing</div>
+      <div class="sec-field"><span class="lbl">Atletisch vermogen</span> ${abcd} + onderbouwing</div>
+      <div class="sec-field"><span class="lbl">Bijdrage</span> ${abcd} · <span class="lbl">Potentie</span> ${abcd}</div>
+      <div class="sec-field"><span class="lbl">Oordeel:</span> ☐ Ongeschikt &nbsp;☐ Blijven volgen &nbsp;☐ Stage &nbsp;☐ Direct aannemen</div>
+      <div class="sec-field"><span class="lbl">Conclusie</span> (verplicht)</div>
+    </div></div>
+    <div class="sec-group"><div class="sec-group-title">🏆 Eindconclusie & oordeel</div><div class="sec-fields"><div class="sec-field">Algemene conclusie over de wedstrijd / sessie</div></div></div>`;
+}
+
+function toggleRecord(){isRecording?stopRecording():startRecording();}
+
+function startRecording(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){showMicError('Spraakherkenning niet beschikbaar. Probeer Safari op iPhone of Chrome op Android.');return;}
+  recognition=new SR();recognition.lang='nl-NL';recognition.continuous=true;recognition.interimResults=true;
+  finalTranscript='';let sessionTranscript='';
+  recognition.onresult=e=>{let interim='';for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)sessionTranscript+=e.results[i][0].transcript+' ';else interim+=e.results[i][0].transcript;}document.getElementById('live-text').textContent=sessionTranscript+interim;document.getElementById('live-box').style.display='block';finalTranscript=sessionTranscript;};
+  recognition.onerror=e=>{if(e.error==='not-allowed')showMicError('Microfoon geblokkeerd. Ga naar Instellingen → Safari → Microfoon → Toestaan.');else showMicError('Fout: '+e.error);stopRecording();};
+  recognition.onend=()=>{if(isRecording)recognition.start();};
+  recognition.start();isRecording=true;recordSeconds=0;setRecordUI('recording');
+  timerInterval=setInterval(()=>{recordSeconds++;const m=String(Math.floor(recordSeconds/60)).padStart(2,'0'),s=String(recordSeconds%60).padStart(2,'0');document.getElementById('record-timer').textContent=m+':'+s;},1000);
+}
+
+function stopRecording(){
+  if(recognition){recognition.onend=null;recognition.stop();}
+  clearInterval(timerInterval);isRecording=false;setRecordUI('idle');
+  const nieuw=finalTranscript.trim();
+  document.getElementById('live-box').style.display='none';
+  if(nieuw){transcript=transcript?transcript+' '+nieuw:nieuw;finalTranscript='';document.getElementById('transcript-text').textContent=transcript;document.getElementById('transcript-box').style.display='block';document.getElementById('step-process').style.display='block';document.getElementById('error-box').style.display='none';}
+}
+
+function setRecordUI(s){const b=document.getElementById('record-btn'),t=document.getElementById('record-timer'),l=document.getElementById('record-label');if(s==='recording'){b.className='record-btn recording';b.textContent='⏸';t.style.display='block';l.textContent='● LOOPT — tik om te pauzeren';l.className='record-label active';}else{b.className='record-btn idle';b.textContent='🎤';t.style.display='none';l.textContent=transcript?'Tik om verder in te spreken':'Tik om te beginnen';l.className='record-label';}}
+function clearTranscript(){transcript='';structuredData=null;finalTranscript='';['transcript-box','step-process','step-result'].forEach(id=>document.getElementById(id).style.display='none');document.getElementById('live-box').style.display='none';}
+function showMicError(msg){const b=document.getElementById('error-box');b.style.display='block';b.innerHTML=`<div class="error-title">📱 Microfoon probleem</div><div>${msg}</div>`;}
+
+async function processTranscript(){
+  if(!transcript.trim())return;
+  const btn=document.getElementById('process-btn');
+  btn.disabled=true;btn.textContent='⏳ Claude verdeelt de tekst...';
+  document.getElementById('step-result').style.display='none';
+  document.getElementById('error-box').style.display='none';
+  try{
+    const res=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:SYSTEM_PROMPT,messages:[{role:'user',content:transcript}]})});
+    const d=await res.json();
+    if(d.error)throw new Error('API fout: '+JSON.stringify(d.error));
+    const raw=d.content?.map(c=>c.text||'').join('')||'';
+    if(!raw)throw new Error('Leeg antwoord van Claude');
+    const match=raw.match(/\{[\s\S]*\}/);
+    if(!match)throw new Error('Geen JSON gevonden. Claude zei: '+raw.substring(0,200));
+    structuredData=JSON.parse(match[0]);
+    btn.disabled=false;btn.textContent='✨ Verwerk verslag';
+    openSection=SECTIONS[0].id;renderAccordion();
+    document.getElementById('step-result').style.display='block';
+  }catch(e){
+    btn.disabled=false;btn.textContent='✨ Probeer opnieuw';
+    const b=document.getElementById('error-box');b.style.display='block';b.innerHTML=`<div class="error-title">⚠️ Fout</div><div class="error-generic">${e.message}</div>`;
   }
 }
+
+function renderAccordion(){document.getElementById('accordion').innerHTML=SECTIONS.map(sec=>{const val=structuredData?.[sec.id],filled=hasContent(val),isOpen=openSection===sec.id;return`<div class="acc-item${isOpen?' open':''}"><button class="acc-btn" onclick="toggleSection('${sec.id}')"><span>${sec.icon} ${sec.label}${filled?'<span class="acc-dot"></span>':''}</span><span class="acc-arrow">▼</span></button>${isOpen?`<div class="acc-body">${renderSec(sec.id,val)}</div>`:''}</div>`;}).join('');}
+function toggleSection(id){openSection=openSection===id?null:id;renderAccordion();}
+function hasContent(v){if(!v)return false;if(Array.isArray(v))return v.length>0;if(typeof v==='object')return Object.values(v).some(x=>x&&(!Array.isArray(x)||x.length>0));return!!v;}
+function abcdBadge(score){if(!score)return'<span class="abcd-badge">—</span>';return`<span class="abcd-badge score-${score}">${score}</span>`;}
+
+function renderSec(id,val){
+  if(!val)return'<div class="empty">Niet vermeld</div>';
+  if(id==='scout_info')return`<div class="meta-grid">${[['🔍 NAAM SCOUT',val.naam_scout],['📅 WEEKNUMMER',val.weeknummer],['🔵 RING',val.ring],['📆 DATUM',val.datum]].map(([k,v])=>`<div class="meta-cell"><div class="meta-label">${k}</div><div class="meta-val">${v||'—'}</div></div>`).join('')}</div>`;
+  if(id==='wedstrijden'){const rijen=Array.isArray(val)?val:[],opm=structuredData.opmerkingen_wedstrijden;return`${rijen.length?`<div style="overflow-x:auto"><table class="wedstrijden-tabel"><thead><tr><th>Datum</th><th>Club</th><th>Team</th><th>Tegenstander</th><th>Team</th><th>Opmerking</th></tr></thead><tbody>${rijen.map(r=>`<tr><td>${r.datum||'—'}</td><td>${r.club||'—'}</td><td>${r.team||'—'}</td><td>${r.tegenstander||'—'}</td><td>${r.team_teg||'—'}</td><td>${r.opmerking||''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">Geen wedstrijden vermeld</div>'}${opm?`<div style="font-size:12px;color:#c8c0bc;font-style:italic;padding:8px 0">${opm}</div>`:''}`;}
+  if(id==='wedstrijd')return`<div class="meta-grid" style="margin-bottom:12px"><div class="meta-cell"><div class="meta-label">🏠 THUISPLOEG</div><div class="meta-val">${val.thuisploeg||'—'}</div></div><div class="meta-cell"><div class="meta-label">✈️ UITPLOEG</div><div class="meta-val">${val.uitploeg||'—'}</div></div><div class="meta-cell" style="grid-column:1/-1"><div class="meta-label">🏆 UITSLAG</div><div class="meta-val" style="font-size:20px">${val.uitslag||'—'}</div></div></div>${val.eerste_helft?.length?`<div style="font-size:10px;color:#D2122E;font-weight:bold;letter-spacing:0.8px;margin-bottom:5px">1E HELFT</div><ul class="bullet-list" style="margin-bottom:10px">${val.eerste_helft.map(v=>`<li>${v}</li>`).join('')}</ul>`:''}${val.tweede_helft?.length?`<div style="font-size:10px;color:#D2122E;font-weight:bold;letter-spacing:0.8px;margin-bottom:5px">2E HELFT</div><ul class="bullet-list" style="margin-bottom:10px">${val.tweede_helft.map(v=>`<li>${v}</li>`).join('')}</ul>`:''}${val.hoogtepunten?.length?`<div style="font-size:10px;color:#D2122E;font-weight:bold;letter-spacing:0.8px;margin-bottom:5px">⭐ HOOGTEPUNTEN</div><ul class="bullet-list">${val.hoogtepunten.map(v=>`<li>${v}</li>`).join('')}</ul>`:''}`;
+  if(id==='spelers'){if(!Array.isArray(val)||!val.length)return'<div class="empty">Geen spelers vermeld</div>';const kleurMap={'Ongeschikt':'#D2122E','Blijven volgen':'#f0c040','Stage (ART/AVS)':'#4da6ff','Direct aannemen':'#6ee87a'};const catLabels={tech:'Functionele techniek',spelint:'Spelinteligentie',grit:'GRIT / Passie & Attitude',atletisch:'Atletisch vermogen'};return val.map(s=>{const naam=[s.voornaam,s.naam].filter(Boolean).join(' ')||'—';const ok=kleurMap[s.oordeel]||'#aaa';return`<div class="speler-card"><div class="speler-naam">👤 ${naam}</div><div class="meta-grid" style="margin-bottom:10px">${[['GEB.JAAR',s.geb_jaar],['CLUB',s.club],['TEAM',s.team],['POSITIE',s.positie],['VOORKEURSBEEN',s.voorkeursbeen]].filter(([,v])=>v).map(([k,v])=>`<div class="meta-cell"><div class="meta-label">${k}</div><div class="meta-val">${v}</div></div>`).join('')}</div>${s.eigenschappen?`<div style="font-size:12px;color:#c8c0bc;margin-bottom:10px;padding:8px 10px;background:rgba(210,18,46,0.06);border-radius:6px"><span style="font-size:10px;color:#D2122E;font-weight:bold;display:block;margin-bottom:3px">EIGENSCHAPPEN</span>${s.eigenschappen}</div>`:''}${['tech','spelint','grit','atletisch'].map(k=>{const cat=s[k];if(!cat)return'';return`<div class="abcd-block"><div class="abcd-block-label">${catLabels[k].toUpperCase()}</div>${abcdBadge(cat.score)}${cat.onderbouwing?`<div class="abcd-onderbouwing">${cat.onderbouwing}</div>`:''}</div>`;}).join('')}<div style="display:flex;gap:8px;margin:8px 0"><div class="abcd-block" style="flex:1;margin-bottom:0"><div class="abcd-block-label">BIJDRAGE</div>${abcdBadge(s.bijdrage)}</div><div class="abcd-block" style="flex:1;margin-bottom:0"><div class="abcd-block-label">POTENTIE</div>${abcdBadge(s.potentie)}</div></div>${s.bijdrage_uitleg?`<div style="font-size:12px;color:#c8c0bc;font-style:italic;margin-bottom:8px">${s.bijdrage_uitleg}</div>`:''}${s.oordeel?`<span class="oordeel-badge" style="background:${ok}22;border:1px solid ${ok}77;color:${ok}">${s.oordeel}</span>`:''}${s.conclusie?`<div style="font-size:13px;color:#f5f0ee;line-height:1.75;margin-top:8px;padding-top:8px;border-top:1px solid #3a1218">${s.conclusie}</div>`:''}</div>`;}).join('');}
+  if(id==='conclusie'&&typeof val==='string')return`<div style="font-size:14px;color:#f5f0ee;line-height:1.8">${val}</div>`;
+  return'<div class="empty">Niet vermeld</div>';
+}
+
+function openPDF(){
+  const date=new Date().toLocaleDateString('nl-NL'),d=structuredData;
+  const abcdKleur={A:'#2e7d32',B:'#e65100',C:'#1565c0',D:'#c62828'};
+  const abcdLabel={A:'Champions League',B:'Ajax 1',C:'BVO',D:'Geen verschilmaker'};
+  const adviesKleur={'Ongeschikt':'#c62828','Blijven volgen':'#e65100','Stage (ART/AVS)':'#1565c0','Direct aannemen':'#2e7d32'};
+  const sec=(title,content)=>`<div style="margin-bottom:18px;border-left:4px solid #D2122E;padding-left:12px"><div style="font-weight:bold;color:#D2122E;text-transform:uppercase;font-size:10pt;margin-bottom:7px;padding-bottom:4px;border-bottom:1px solid #eee">${title}</div>${content}</div>`;
+  const badge=score=>{if(!score)return'<span style="color:#999">—</span>';const k=abcdKleur[score]||'#999';return`<span style="background:${k};color:#fff;padding:2px 10px;border-radius:5px;font-weight:bold">${score}</span> <span style="color:#666;font-size:9pt">${abcdLabel[score]||''}</span>`;};
+  let body=`<div style="margin-bottom:16px;padding:10px 14px;background:#f9f9f9;border:1px solid #ddd;border-radius:6px;font-size:9pt;color:#555"><b style="color:#D2122E">Categoriseringen:</b> A = Champions League &nbsp;|&nbsp; B = Ajax 1 &nbsp;|&nbsp; C = BVO &nbsp;|&nbsp; D = Geen verschilmaker</div>`;
+  const si=d.scout_info||{};
+  body+=sec('📋 Scout & Wedstrijdinfo',`<table style="width:100%;border-collapse:collapse"><tr><td style="padding:4px 10px 4px 0;font-weight:bold;color:#555;width:130px">Naam scout</td><td>${si.naam_scout||'—'}</td><td style="padding:4px 10px 4px 16px;font-weight:bold;color:#555;width:120px">Weeknummer</td><td>${si.weeknummer||'—'}</td></tr><tr><td style="padding:4px 10px 4px 0;font-weight:bold;color:#555">Ring</td><td>${si.ring||'—'}</td><td style="padding:4px 10px 4px 16px;font-weight:bold;color:#555">Datum</td><td>${si.datum||'—'}</td></tr></table>`);
+  const wed=d.wedstrijden||[];
+  body+=sec('📅 Geziene wedstrijden',wed.length?`<table style="width:100%;border-collapse:collapse;font-size:10pt"><thead><tr style="background:#f5f5f5">${['Datum','Club','Team','Tegenstander','Team','Opmerking'].map(h=>`<th style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;font-size:8pt;color:#555">${h}</th>`).join('')}</tr></thead><tbody>${wed.map(r=>`<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.datum||'—'}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.club||'—'}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.team||'—'}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.tegenstander||'—'}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.team_teg||'—'}</td><td style="padding:4px 8px;border-bottom:1px solid #eee">${r.opmerking||''}</td></tr>`).join('')}</tbody></table>${d.opmerkingen_wedstrijden?`<p style="margin-top:8px;font-size:9pt;color:#555;font-style:italic">${d.opmerkingen_wedstrijden}</p>`:''}` :'<p style="color:#999">Niet vermeld</p>');
+  const wv=d.wedstrijd||{};
+  body+=sec('⚽ Wedstrijdverloop',`<table style="width:100%;border-collapse:collapse;margin-bottom:10px"><tr><td style="padding:4px 10px 4px 0;font-weight:bold;color:#555;width:100px">Thuisploeg</td><td>${wv.thuisploeg||'—'}</td><td style="padding:4px 10px 4px 16px;font-weight:bold;color:#555;width:100px">Uitploeg</td><td>${wv.uitploeg||'—'}</td></tr><tr><td style="padding:4px 10px 4px 0;font-weight:bold;color:#555">Uitslag</td><td colspan="3" style="font-weight:bold;font-size:14pt;color:#D2122E">${wv.uitslag||'—'}</td></tr></table>${wv.eerste_helft?.length?`<p style="font-weight:bold;color:#555;margin-bottom:4px">Eerste helft:</p><ul style="padding-left:18px;margin-bottom:8px">${wv.eerste_helft.map(v=>`<li style="line-height:1.7">${v}</li>`).join('')}</ul>`:''}${wv.tweede_helft?.length?`<p style="font-weight:bold;color:#555;margin-bottom:4px">Tweede helft:</p><ul style="padding-left:18px;margin-bottom:8px">${wv.tweede_helft.map(v=>`<li style="line-height:1.7">${v}</li>`).join('')}</ul>`:''}${wv.hoogtepunten?.length?`<p style="font-weight:bold;color:#555;margin-bottom:4px">Hoogtepunten:</p><ul style="padding-left:18px">${wv.hoogtepunten.map(v=>`<li style="line-height:1.7">${v}</li>`).join('')}</ul>`:''}`);
+  const spelers=d.spelers||[];
+  body+=sec('🔍 Beoordeling per speler',spelers.length?spelers.map(s=>{const naam=[s.voornaam,s.naam].filter(Boolean).join(' ')||'—';const ok=adviesKleur[s.oordeel]||'#555';return`<div style="margin-bottom:20px;padding:12px 14px;border:1px solid #ddd;border-radius:8px;page-break-inside:avoid"><h3 style="font-size:13pt;margin-bottom:8px">👤 ${naam}</h3><table style="width:100%;border-collapse:collapse;margin-bottom:10px;font-size:10pt">${[['Geb.jaar',s.geb_jaar],['Club',s.club],['Team',s.team],['Positie',s.positie],['Voorkeursbeen',s.voorkeursbeen]].filter(([,v])=>v).map(([k,v])=>`<tr><td style="padding:3px 10px 3px 0;font-weight:bold;color:#555;width:120px">${k}</td><td>${v}</td></tr>`).join('')}</table>${s.eigenschappen?`<p style="font-size:9pt;color:#555;font-style:italic;margin-bottom:10px">${s.eigenschappen}</p>`:''}<table style="width:100%;border-collapse:collapse;margin-bottom:10px">${[['Functionele techniek',s.tech],['Spelinteligentie',s.spelint],['GRIT / Passie & Attitude',s.grit],['Atletisch vermogen',s.atletisch]].map(([label,cat])=>cat?`<tr><td style="padding:5px 10px 5px 0;font-weight:bold;color:#555;width:180px;vertical-align:top">${label}</td><td style="vertical-align:top">${badge(cat.score)}${cat.onderbouwing?`<br><span style="font-size:9pt;color:#666;font-style:italic">${cat.onderbouwing}</span>`:''}</td></tr>`:'').join('')}<tr><td style="padding:5px 10px 5px 0;font-weight:bold;color:#555">Bijdrage</td><td>${badge(s.bijdrage)}</td></tr><tr><td style="padding:5px 10px 5px 0;font-weight:bold;color:#555">Potentie</td><td>${badge(s.potentie)}</td></tr></table>${s.bijdrage_uitleg?`<p style="font-size:9pt;color:#555;font-style:italic;margin-bottom:8px">${s.bijdrage_uitleg}</p>`:''}<div style="margin-bottom:8px"><span style="background:${ok};color:#fff;padding:5px 16px;border-radius:20px;font-weight:bold;font-size:10pt">${s.oordeel||'—'}</span></div>${s.conclusie?`<p style="font-size:10pt;line-height:1.7">${s.conclusie}</p>`:''}</div>`;}).join(''):'<p style="color:#999">Geen spelers vermeld</p>');
+  if(d.conclusie)body+=sec('🏆 Eindconclusie',`<p style="font-size:11pt;line-height:1.7">${d.conclusie}</p>`);
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ajax Scoutingsverslag</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:11pt;color:#111;background:#fff}.bar{position:fixed;bottom:0;left:0;right:0;background:#D2122E;padding:14px 20px;display:flex;align-items:center;justify-content:space-between}.btn{background:#fff;color:#9e0e22;border:none;padding:11px 22px;border-radius:8px;font-size:13pt;font-weight:bold;cursor:pointer}@media print{.bar,.sp{display:none!important}}</style></head><body><div style="background:#D2122E;color:#fff;padding:18px 24px"><h1 style="font-size:18pt;margin-bottom:3px">⚽ Ajax Scoutingsverslag</h1><p style="font-size:9pt;opacity:.8">Gegenereerd op ${date} · Map: ${currentFolder}</p></div><div style="padding:18px 24px">${body}<div style="margin-top:24px;padding-top:8px;border-top:1px solid #ddd;font-size:8pt;color:#aaa">VoiceVerslag · Ajax Scouting · ${date}</div></div><div class="sp" style="height:70px"></div><div class="bar"><span style="color:#fff;font-size:13pt;font-weight:bold">Opslaan als PDF</span><button class="btn" onclick="window.print()">🖨️ Sla op als PDF</button></div></body></html>`;
+  const w=window.open('','_blank');if(w){w.document.write(html);w.document.close();}else alert('Sta pop-ups toe voor deze site.');
+}
+
+async function downloadWord(){
+  const{Document,Paragraph,TextRun,HeadingLevel,Packer}=docx;
+  const date=new Date().toLocaleDateString('nl-NL'),d=structuredData;
+  const abcdTxt={A:'A – Champions League',B:'B – Ajax 1',C:'C – BVO',D:'D – Geen verschilmaker'};
+  const children=[];
+  const h1=t=>new Paragraph({text:t,heading:HeadingLevel.HEADING_1});
+  const h2=t=>new Paragraph({text:t,heading:HeadingLevel.HEADING_2});
+  const kv=(k,v)=>new Paragraph({children:[new TextRun({text:k+': ',bold:true}),new TextRun(v||'—')]});
+  const lege=()=>new Paragraph({text:''});
+  const cursief=t=>new Paragraph({children:[new TextRun({text:t,italics:true,color:'666666'})]});
+  const bullet=t=>new Paragraph({text:'• '+t,indent:{left:360}});
+  children.push(h1('⚽ Ajax Scoutingsverslag'));
+  children.push(new Paragraph({children:[new TextRun({text:`Gegenereerd op ${date} · Map: ${currentFolder}`,color:'888888',size:20})]}));
+  children.push(lege());
+  const si=d.scout_info||{};
+  children.push(h2('📋 Scout & Wedstrijdinfo'));
+  [['Naam scout',si.naam_scout],['Weeknummer',si.weeknummer],['Ring',si.ring],['Datum',si.datum]].forEach(([k,v])=>children.push(kv(k,v)));
+  children.push(lege());
+  children.push(h2('📅 Geziene wedstrijden'));
+  (d.wedstrijden||[]).forEach(r=>children.push(new Paragraph({text:`${r.datum||'?'} – ${r.club||'?'} ${r.team||''} vs ${r.tegenstander||'?'} ${r.team_teg||''}${r.opmerking?' ('+r.opmerking+')':''}`})));
+  if(d.opmerkingen_wedstrijden)children.push(cursief(d.opmerkingen_wedstrijden));
+  children.push(lege());
+  const wv=d.wedstrijd||{};
+  children.push(h2('⚽ Wedstrijdverloop'));
+  [['Thuisploeg',wv.thuisploeg],['Uitploeg',wv.uitploeg],['Uitslag',wv.uitslag]].forEach(([k,v])=>children.push(kv(k,v)));
+  if(wv.eerste_helft?.length){children.push(new Paragraph({children:[new TextRun({text:'Eerste helft:',bold:true})]}));wv.eerste_helft.forEach(v=>children.push(bullet(v)));}
+  if(wv.tweede_helft?.length){children.push(new Paragraph({children:[new TextRun({text:'Tweede helft:',bold:true})]}));wv.tweede_helft.forEach(v=>children.push(bullet(v)));}
+  if(wv.hoogtepunten?.length){children.push(new Paragraph({children:[new TextRun({text:'Hoogtepunten:',bold:true})]}));wv.hoogtepunten.forEach(v=>children.push(bullet(v)));}
+  children.push(lege());
+  (d.spelers||[]).forEach(s=>{
+    const naam=[s.voornaam,s.naam].filter(Boolean).join(' ')||'—';
+    children.push(h2('👤 '+naam));
+    [['Club',s.club],['Team',s.team],['Positie',s.positie],['Geb.jaar',s.geb_jaar],['Voorkeursbeen',s.voorkeursbeen]].filter(([,v])=>v).forEach(([k,v])=>children.push(kv(k,v)));
+    if(s.eigenschappen)children.push(cursief(s.eigenschappen));
+    children.push(lege());
+    const catLabels={tech:'Functionele techniek',spelint:'Spelinteligentie',grit:'GRIT / Passie & Attitude',atletisch:'Atletisch vermogen'};
+    ['tech','spelint','grit','atletisch'].forEach(k=>{const cat=s[k];if(!cat)return;children.push(new Paragraph({children:[new TextRun({text:catLabels[k]+': ',bold:true}),new TextRun(abcdTxt[cat.score]||cat.score||'—')]}));if(cat.onderbouwing)children.push(cursief(cat.onderbouwing));});
+    children.push(kv('Bijdrage',abcdTxt[s.bijdrage]||s.bijdrage||'—'));
+    children.push(kv('Potentie',abcdTxt[s.potentie]||s.potentie||'—'));
+    if(s.bijdrage_uitleg)children.push(cursief(s.bijdrage_uitleg));
+    children.push(kv('Voorlopig oordeel',s.oordeel||'—'));
+    if(s.conclusie)children.push(new Paragraph({children:[new TextRun({text:'Conclusie: ',bold:true}),new TextRun(s.conclusie)]}));
+    children.push(lege());
+  });
+  if(d.conclusie){children.push(h2('🏆 Eindconclusie'));children.push(new Paragraph({text:d.conclusie}));}
+  const doc=new Document({sections:[{properties:{},children}]});
+  const blob=await Packer.toBlob(doc);
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.target='_blank';a.download='Ajax_Scoutingsverslag_'+date.replace(/\//g,'-')+'.docx';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
+</script>
+</body>
+</html>
