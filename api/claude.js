@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = "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;
   if (!apiKey) return res.status(500).json({ error: 'API key ontbreekt in Vercel omgeving' });
 
   // Beperk max_tokens om timeout te voorkomen
