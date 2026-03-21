@@ -232,14 +232,14 @@ async function processTranscript(){
   document.getElementById('step-result').style.display='none';
   document.getElementById('error-box').style.display='none';
   try{
-    const res=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:8000,system:SYSTEM_PROMPT,messages:[{role:'user',content:transcript}]})});
+    const res=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5',max_tokens:2000,system:SYSTEM_PROMPT,messages:[{role:'user',content:transcript}]})});
     const d=await res.json();
-    if(d.error)throw new Error('API fout: '+JSON.stringify(d.error));
+    if(d.error)throw new Error('API: '+JSON.stringify(d.error)+(d.raw?' | Raw: '+d.raw:''));
     const raw=d.content?.map(c=>c.text||'').join('')||'';
-    if(!raw)throw new Error('Leeg antwoord van Claude');
+    if(!raw)throw new Error('Leeg antwoord. Stop_reason: '+d.stop_reason+' | '+JSON.stringify(d).substring(0,200));
     const match=raw.match(/\{[\s\S]*\}/);
-    if(!match)throw new Error('Geen JSON gevonden. Claude zei: '+raw.substring(0,200));
-    try{structuredData=JSON.parse(match[0]);}catch(parseErr){throw new Error('JSON ongeldig: '+raw.substring(0,300));}
+    if(!match)throw new Error('Geen JSON in: '+raw.substring(0,300));
+    try{structuredData=JSON.parse(match[0]);}catch(parseErr){throw new Error('Parse fout: '+parseErr.message+' | '+raw.substring(0,300));}
     btn.disabled=false;btn.textContent='✨ Verwerk verslag';
     openSection=SECTIONS[0].id;renderAccordion();
     document.getElementById('step-result').style.display='block';
