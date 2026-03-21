@@ -232,14 +232,14 @@ async function processTranscript(){
   document.getElementById('step-result').style.display='none';
   document.getElementById('error-box').style.display='none';
   try{
-    const res=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:SYSTEM_PROMPT,messages:[{role:'user',content:transcript}]})});
+    const res=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8000,system:SYSTEM_PROMPT,messages:[{role:'user',content:transcript}]})});
     const d=await res.json();
     if(d.error)throw new Error('API fout: '+JSON.stringify(d.error));
     const raw=d.content?.map(c=>c.text||'').join('')||'';
     if(!raw)throw new Error('Leeg antwoord van Claude');
     const match=raw.match(/\{[\s\S]*\}/);
     if(!match)throw new Error('Geen JSON gevonden. Claude zei: '+raw.substring(0,200));
-    structuredData=JSON.parse(match[0]);
+    try{structuredData=JSON.parse(match[0]);}catch(parseErr){throw new Error('JSON ongeldig: '+raw.substring(0,300));}
     btn.disabled=false;btn.textContent='✨ Verwerk verslag';
     openSection=SECTIONS[0].id;renderAccordion();
     document.getElementById('step-result').style.display='block';
